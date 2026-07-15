@@ -6,13 +6,18 @@ from flask_cors import CORS
 import json
 import os
 from datetime import datetime
+
 app = Flask(__name__)
 CORS(app)
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
+
 BREAKFAST_FILE = os.path.join(DATA_DIR, 'breakfast.json')
 CLEANING_FILE = os.path.join(DATA_DIR, 'cleaning.json')
+
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
+
 def load_json(filepath, default=None):
     if default is None: default = []
     if os.path.exists(filepath):
@@ -20,8 +25,11 @@ def load_json(filepath, default=None):
             with open(filepath, 'r', encoding='utf-8') as f: return json.load(f)
         except: return default
     return default
+
 def save_json(filepath, data):
     with open(filepath, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+
+# ==================== 早餐页面（弹窗卡片式） ====================
 BREAKFAST_HTML = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -88,13 +96,16 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
     <button class="close" onclick="location.reload()">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
+    
     <div class="form-content" id="formContent">
         <div class="title">早餐预订</div>
         <div class="subtitle">小陈家·环洱度假美宿</div>
+        
         <div class="section">
             <div class="section-title">选择房号</div>
             <div class="rooms" id="roomSel"></div>
         </div>
+        
         <div class="section" id="qtySection" style="display:none">
             <div class="section-title">选择份数</div>
             <div class="qty-section">
@@ -106,9 +117,12 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
                 </div>
             </div>
         </div>
+        
         <div id="bowlArea"></div>
+        
         <button class="submit" id="submitBtn" onclick="submitAll()" disabled>提交全部订单</button>
     </div>
+    
     <div class="success" id="successMsg">
         <div class="success-icon">
             <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
@@ -118,14 +132,17 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         <button class="btn-outline" onclick="location.reload()">继续预订</button>
     </div>
 </div>
+
 <script>
 const rooms = ['101','201','202','203','204','205','301','302','303','304','305','306'];
 let selectedRoom = '';
 let bowlCount = 0;
 let bowlData = {};
+
 document.getElementById('roomSel').innerHTML = rooms.map((r,i) => 
     `<button class="room-btn" onclick="selectRoom('${r}')" style="animation-delay:${i*0.05}s">${r}</button>`
 ).join('');
+
 function selectRoom(room) {
     selectedRoom = room;
     document.querySelectorAll('.room-btn').forEach(b => b.classList.remove('selected'));
@@ -133,14 +150,17 @@ function selectRoom(room) {
     document.getElementById('qtySection').style.display = 'block';
     if (bowlCount === 0) changeQty(1);
 }
+
 function changeQty(delta) {
     bowlCount = Math.max(1, Math.min(10, bowlCount + delta));
     document.getElementById('qty').textContent = bowlCount;
     renderBowls();
 }
+
 function renderBowls() {
     const area = document.getElementById('bowlArea');
     if (bowlCount === 0) { area.innerHTML = ''; checkSubmit(); return; }
+    
     let html = '';
     for (let i = 1; i <= bowlCount; i++) {
         const d = bowlData[i] || {};
@@ -178,11 +198,13 @@ function renderBowls() {
     area.innerHTML = html;
     checkSubmit();
 }
+
 function setBowl(num, key, val) {
     if (!bowlData[num]) bowlData[num] = {};
     bowlData[num][key] = val;
     renderBowls();
 }
+
 function checkSubmit() {
     let allFilled = selectedRoom && bowlCount > 0;
     for (let i = 1; i <= bowlCount; i++) {
@@ -194,10 +216,12 @@ function checkSubmit() {
     if (allFilled) btn.classList.add('active');
     else btn.classList.remove('active');
 }
+
 async function submitAll() {
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = '提交中...';
+    
     let count = 0;
     for (let i = 1; i <= bowlCount; i++) {
         const d = bowlData[i];
@@ -210,12 +234,15 @@ async function submitAll() {
             count++;
         } catch(e) {}
     }
+    
     document.getElementById('formContent').classList.add('hidden');
     document.getElementById('successMsg').style.display = 'block';
     document.getElementById('resultMsg').textContent = `${selectedRoom}房 ${count}碗早餐已记录`;
 }
 </script>
 </body></html>'''
+
+# ==================== 客房清洁页面 ====================
 CLEANING_HTML = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -228,18 +255,24 @@ CLEANING_HTML = '''<!DOCTYPE html>
         body{font-family:-apple-system,'Noto Sans SC',sans-serif;background:linear-gradient(135deg,#2a3f5f 0%,#1a2a4a 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .5s ease}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes slideUp{from{opacity:0;transform:translateY(30px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
         @keyframes checkPop{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
-        .modal{background:var(--w);border-radius:24px;padding:32px 28px;width:100%;max-width:400px;position:relative;animation:slideUp .4s cubic-bezier(.4,0,.2,1);box-shadow:0 20px 60px rgba(0,0,0,.3)}
-        .close{position:absolute;top:16px;right:16px;width:36px;height:36px;background:#f5f5f5;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+        .modal{background:var(--w);border-radius:24px;padding:32px 28px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;position:relative;animation:slideUp .4s cubic-bezier(.4,0,.2,1);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+        .modal::-webkit-scrollbar{width:6px}
+        .modal::-webkit-scrollbar-thumb{background:#ddd;border-radius:3px}
+        .close{position:absolute;top:16px;right:16px;width:36px;height:36px;background:#f5f5f5;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;z-index:10}
         .close:hover{background:#e0e0e0;transform:rotate(90deg)}
         .close svg{width:18px;height:18px;stroke:#999;stroke-width:2;fill:none}
-        .title{font-size:1.4rem;font-weight:700;color:var(--n);margin-bottom:8px}
-        .subtitle{font-size:.9rem;color:#888;margin-bottom:28px}
-        .field-label{font-size:.85rem;color:#666;margin-bottom:10px;font-weight:500}
-        .room-input{width:100%;padding:16px;border:2px solid #e8e2d8;border-radius:12px;font-size:1rem;font-family:inherit;transition:all .2s;appearance:none;cursor:pointer;background:var(--w) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 16px center}
-        .room-input:focus{outline:none;border-color:var(--s);box-shadow:0 0 0 3px rgba(156,175,136,.2)}
-        .room-input option{padding:12px;font-size:1rem}
-        .options{display:flex;flex-direction:column;gap:12px;margin-top:24px}
+        .title{font-size:1.4rem;font-weight:700;color:var(--n);margin-bottom:6px}
+        .subtitle{font-size:.9rem;color:#888;margin-bottom:24px}
+        .section{margin-bottom:20px}
+        .section-title{font-size:.85rem;color:#666;margin-bottom:12px;font-weight:600;display:flex;align-items:center;gap:8px}
+        .section-title::before{content:'';width:4px;height:14px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:2px}
+        .rooms{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+        .room-btn{padding:14px 8px;border:2px solid #e8e2d8;border-radius:12px;background:linear-gradient(135deg,var(--w) 0%,#f8f6f3 100%);font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;text-align:center;font-family:inherit}
+        .room-btn:hover{border-color:var(--s);transform:translateY(-2px);box-shadow:0 4px 12px rgba(156,175,136,.3)}
+        .room-btn.selected{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border-color:var(--s);animation:pulse .3s ease;box-shadow:0 4px 16px rgba(156,175,136,.4)}
+        .options{display:flex;flex-direction:column;gap:12px}
         .opt-card{display:flex;align-items:center;gap:16px;padding:18px;border:2px solid #e8e2d8;border-radius:14px;cursor:pointer;transition:all .3s;background:var(--w)}
         .opt-card:hover{border-color:var(--s);background:#f8faf8}
         .opt-card.selected{border-color:var(--s);background:linear-gradient(135deg,#f0f9f0 0%,#e8f5e8 100%)}
@@ -252,7 +285,17 @@ CLEANING_HTML = '''<!DOCTYPE html>
         .opt-card.selected .opt-check{background:var(--s);border-color:var(--s)}
         .opt-card.selected .opt-check svg{opacity:1}
         .opt-check svg{width:12px;height:12px;stroke:#fff;stroke-width:3;fill:none;opacity:0;transition:opacity .2s}
-        .submit{width:100%;padding:16px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;font-family:inherit;margin-top:24px;opacity:.5}
+        .time-section{margin-top:20px;padding-top:20px;border-top:1px solid #f0f0f0;display:none}
+        .time-section.show{display:block}
+        .time-label{font-size:.85rem;color:#666;margin-bottom:12px;font-weight:500;display:flex;align-items:center;gap:6px}
+        .time-label svg{width:16px;height:16px;stroke:var(--s);stroke-width:2;fill:none}
+        .time-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        .time-btn{padding:12px 8px;border:2px solid #e8e2d8;border-radius:10px;background:var(--w);font-size:.85rem;cursor:pointer;transition:all .3s;text-align:center;font-family:inherit;font-weight:500}
+        .time-btn:hover{border-color:var(--s)}
+        .time-btn.selected{background:var(--s);color:#fff;border-color:var(--s)}
+        .note-input{width:100%;padding:12px 16px;border:2px solid #e8e2d8;border-radius:10px;font-size:.9rem;font-family:inherit;transition:all .2s;margin-top:12px;resize:none}
+        .note-input:focus{outline:none;border-color:var(--s);box-shadow:0 0 0 3px rgba(156,175,136,.2)}
+        .submit{width:100%;padding:16px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;font-family:inherit;margin-top:20px;opacity:.5}
         .submit.active{opacity:1}
         .submit.active:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(156,175,136,.4)}
         .success{text-align:center;padding:20px 0;display:none}
@@ -268,37 +311,62 @@ CLEANING_HTML = '''<!DOCTYPE html>
     <button class="close" onclick="location.reload()">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
+    
     <div class="form-content" id="formContent">
         <div class="title">客房清洁服务</div>
         <div class="subtitle">请选择今日客房服务状态</div>
-        <div class="field-label">房间号</div>
-        <select class="room-input" id="roomSelect" onchange="checkForm()">
-            <option value="" disabled selected>请选择您的房间号</option>
-        </select>
-        <div class="options">
-            <div class="opt-card" onclick="selectOpt(this, 'yes')">
-                <div class="opt-icon">🧹</div>
-                <div class="opt-text">
-                    <h4>需要清洁</h4>
-                    <p>请在上午10点前选择</p>
+        
+        <div class="section">
+            <div class="section-title">选择房号</div>
+            <div class="rooms" id="roomSel"></div>
+        </div>
+        
+        <div class="section" id="optSection" style="display:none">
+            <div class="section-title">服务选择</div>
+            <div class="options">
+                <div class="opt-card" onclick="selectOpt(this, 'yes')">
+                    <div class="opt-icon">🧹</div>
+                    <div class="opt-text">
+                        <h4>需要清洁</h4>
+                        <p>请选择期望打扫时间</p>
+                    </div>
+                    <div class="opt-check">
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
                 </div>
-                <div class="opt-check">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                </div>
-            </div>
-            <div class="opt-card" onclick="selectOpt(this, 'no')">
-                <div class="opt-icon">🚫</div>
-                <div class="opt-text">
-                    <h4>免打扰</h4>
-                    <p>今日无需清洁客房</p>
-                </div>
-                <div class="opt-check">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                <div class="opt-card" onclick="selectOpt(this, 'no')">
+                    <div class="opt-icon">🚫</div>
+                    <div class="opt-text">
+                        <h4>免打扰</h4>
+                        <p>今日无需清洁客房</p>
+                    </div>
+                    <div class="opt-check">
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
                 </div>
             </div>
         </div>
+        
+        <div class="time-section" id="timeSection">
+            <div class="time-label">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                期望打扫时间（16点前）
+            </div>
+            <div class="time-grid" id="timeGrid">
+                <button class="time-btn" onclick="selectTime(this,'8:00-9:00')">8:00-9:00</button>
+                <button class="time-btn" onclick="selectTime(this,'9:00-10:00')">9:00-10:00</button>
+                <button class="time-btn" onclick="selectTime(this,'10:00-11:00')">10:00-11:00</button>
+                <button class="time-btn" onclick="selectTime(this,'11:00-12:00')">11:00-12:00</button>
+                <button class="time-btn" onclick="selectTime(this,'13:00-14:00')">13:00-14:00</button>
+                <button class="time-btn" onclick="selectTime(this,'14:00-15:00')">14:00-15:00</button>
+                <button class="time-btn" onclick="selectTime(this,'15:00-16:00')">15:00-16:00</button>
+            </div>
+            <textarea class="note-input" id="noteInput" placeholder="备注信息（选填）" rows="2"></textarea>
+        </div>
+        
         <button class="submit" id="submitBtn" onclick="submitForm()">提交选择</button>
     </div>
+    
     <div class="success" id="successMsg">
         <div class="success-icon">
             <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
@@ -307,47 +375,82 @@ CLEANING_HTML = '''<!DOCTYPE html>
         <p id="resultMsg">您的选择已记录</p>
     </div>
 </div>
+
 <script>
 const rooms = ['101','201','202','203','204','205','301','302','303','304','305','306'];
 let selectedRoom = '';
 let selectedOpt = '';
-const select = document.getElementById('roomSelect');
-rooms.forEach(r => {
-    const opt = document.createElement('option');
-    opt.value = r;
-    opt.textContent = r + '房';
-    select.appendChild(opt);
-});
+let selectedTime = '';
+
+document.getElementById('roomSel').innerHTML = rooms.map((r,i) => 
+    `<button class="room-btn" onclick="selectRoom('${r}')" style="animation-delay:${i*0.05}s">${r}</button>`
+).join('');
+
+function selectRoom(room) {
+    selectedRoom = room;
+    selectedOpt = '';
+    selectedTime = '';
+    document.querySelectorAll('.room-btn').forEach(b => b.classList.remove('selected'));
+    event.target.classList.add('selected');
+    document.querySelectorAll('.opt-card').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('optSection').style.display = 'block';
+    document.getElementById('timeSection').classList.remove('show');
+    document.getElementById('submitBtn').classList.remove('active');
+}
+
 function selectOpt(el, value) {
     selectedOpt = value;
+    selectedTime = '';
     document.querySelectorAll('.opt-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+    
+    const timeSection = document.getElementById('timeSection');
+    if (value === 'yes') {
+        timeSection.classList.add('show');
+    } else {
+        timeSection.classList.remove('show');
+    }
+    checkForm();
+}
+
+function selectTime(el, time) {
+    selectedTime = time;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
     el.classList.add('selected');
     checkForm();
 }
+
 function checkForm() {
-    selectedRoom = document.getElementById('roomSelect').value;
     const btn = document.getElementById('submitBtn');
-    if (selectedRoom && selectedOpt) {
+    if (selectedRoom && selectedOpt && (selectedOpt === 'no' || selectedTime)) {
         btn.classList.add('active');
     } else {
         btn.classList.remove('active');
     }
 }
+
 async function submitForm() {
     if (!selectedRoom || !selectedOpt) return;
+    if (selectedOpt === 'yes' && !selectedTime) return;
+    
     const btn = document.getElementById('submitBtn');
     btn.textContent = '提交中...';
     btn.disabled = true;
+    
+    const note = document.getElementById('noteInput').value;
+    
     try {
         await fetch('/api/cleaning', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({room: selectedRoom, need: selectedOpt})
+            body: JSON.stringify({room: selectedRoom, need: selectedOpt, time: selectedTime, note: note})
         });
         document.getElementById('formContent').classList.add('hidden');
         document.getElementById('successMsg').style.display = 'block';
         document.getElementById('resultMsg').textContent = 
-            `${selectedRoom}房 ${selectedOpt==='yes'?'需要清洁':'免打扰'} 已记录`;
+            `${selectedRoom}房 ${selectedOpt==='yes'?'打扫时间：'+selectedTime:'免打扰'} 已记录`;
     } catch(e) {
         alert('提交失败，请重试');
         btn.textContent = '提交选择';
@@ -356,6 +459,8 @@ async function submitForm() {
 }
 </script>
 </body></html>'''
+
+# ==================== 后台管理页面 ====================
 ADMIN_HTML = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -417,35 +522,59 @@ async function loadC(){
 refresh();setInterval(refresh,3000);
 </script>
 </body></html>'''
+
+# ==================== API路由 ====================
 @app.route('/')
 def index(): return '<script>location.href="/breakfast"</script>'
+
 @app.route('/breakfast')
 def breakfast_page(): return BREAKFAST_HTML
+
 @app.route('/cleaning')
 def cleaning_page(): return CLEANING_HTML
+
 @app.route('/admin')
 def admin_page(): return ADMIN_HTML
+
 @app.route('/api/breakfast', methods=['GET'])
 def get_breakfast(): return jsonify(load_json(BREAKFAST_FILE, []))
+
 @app.route('/api/breakfast', methods=['POST'])
 def add_breakfast():
     data = request.json
     orders = load_json(BREAKFAST_FILE, [])
     now = datetime.now()
-    order = {'room': data.get('room', ''), 'soup': data.get('soup', ''), 'onion': data.get('onion', ''), 'herb': data.get('herb', ''), 'timestamp': now.isoformat(), 'time': now.strftime('%H:%M'), 'date': now.strftime('%Y-%m-%d')}
+    order = {
+        'room': data.get('room', ''),
+        'soup': data.get('soup', ''),
+        'onion': data.get('onion', ''),
+        'herb': data.get('herb', ''),
+        'timestamp': now.isoformat(),
+        'time': now.strftime('%H:%M'),
+        'date': now.strftime('%Y-%m-%d')
+    }
     orders.append(order)
     save_json(BREAKFAST_FILE, orders)
     return jsonify({'success': True})
+
 @app.route('/api/cleaning', methods=['GET'])
 def get_cleaning(): return jsonify(load_json(CLEANING_FILE, []))
+
 @app.route('/api/cleaning', methods=['POST'])
 def add_cleaning():
     data = request.json
     records = load_json(CLEANING_FILE, [])
     now = datetime.now()
-    record = {'room': data.get('room', ''), 'need': data.get('need', ''), 'timestamp': now.isoformat(), 'time': now.strftime('%H:%M'), 'date': now.strftime('%Y-%m-%d')}
+    record = {
+        'room': data.get('room', ''),
+        'need': data.get('need', ''),
+        'timestamp': now.isoformat(),
+        'time': now.strftime('%H:%M'),
+        'date': now.strftime('%Y-%m-%d')
+    }
     records.append(record)
     save_json(CLEANING_FILE, records)
     return jsonify({'success': True})
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
