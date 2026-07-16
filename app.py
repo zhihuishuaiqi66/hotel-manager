@@ -18,6 +18,10 @@ CLEANING_FILE = os.path.join(DATA_DIR, 'cleaning.json')
 
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
 
+BREAKFAST_FILE = os.path.join(DATA_DIR, 'breakfast.json')
+CLEANING_FILE = os.path.join(DATA_DIR, 'cleaning.json')
+CHECKOUT_FILE = os.path.join(DATA_DIR, 'checkout.json')
+
 def load_json(filepath, default=None):
     if default is None: default = []
     if os.path.exists(filepath):
@@ -119,11 +123,12 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
                     <button class="qbtn" onclick="changeQty(1)">+</button>
                 </div>
                 <div style="margin-top:16px">
-                    <div style="font-size:.85rem;color:#888;margin-bottom:8px">用餐时间</div>
+                    <div style="font-size:.85rem;color:#888;margin-bottom:8px">用餐时间（8:00-10:00）</div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button class="time-select" onclick="selectMealTime(this,'7:00-8:00')">7:00-8:00</button>
-                        <button class="time-select" onclick="selectMealTime(this,'8:00-9:00')">8:00-9:00</button>
-                        <button class="time-select" onclick="selectMealTime(this,'9:00-10:00')">9:00-10:00</button>
+                        <button class="time-select" onclick="selectMealTime(this,'8:00-8:30')">8:00-8:30</button>
+                        <button class="time-select" onclick="selectMealTime(this,'8:30-9:00')">8:30-9:00</button>
+                        <button class="time-select" onclick="selectMealTime(this,'9:00-9:30')">9:00-9:30</button>
+                        <button class="time-select" onclick="selectMealTime(this,'9:30-10:00')">9:30-10:00</button>
                     </div>
                 </div>
                 </div>
@@ -645,6 +650,24 @@ ADMIN_HTML = '''<!DOCTYPE html>
             </div>
         </div>
     </div>
+    
+    <div class="sec">
+        <div class="sh">
+            <div class="stl">退房提醒</div>
+            <select id="checkoutFilter" onchange="loadCK()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer">
+                <option value="1">今天</option>
+                <option value="3">近3天</option>
+                <option value="7" selected>近7天</option>
+                <option value="30">近30天</option>
+            </select>
+        </div>
+        <div class="cd" id="ckl">
+            <div class="em">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p>暂无退房提醒</p>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- 停止响声按钮 -->
@@ -656,7 +679,7 @@ ADMIN_HTML = '''<!DOCTYPE html>
 
 <script>
 let soundEnabled = true;
-async function refresh(){await Promise.all([loadO(),loadC()]);}
+async function refresh(){await Promise.all([loadO(),loadC(),loadCK()]);}
 async function loadO(){
     const days=document.getElementById('breakfastFilter').value;
     const r=await fetch(`/api/breakfast?days=${days}`);const o=await r.json();
@@ -718,6 +741,24 @@ async function markCleanSeen(ts) {
     loadC();
 }
 
+async function loadCK(){
+    const days=document.getElementById('checkoutFilter').value;
+    const r=await fetch(`/api/checkout?days=${days}`);const c=await r.json();
+    if(!c.length){
+        document.getElementById('ckl').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无退房提醒</p></div>';
+        return;
+    }
+    const s=[...c].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    document.getElementById('ckl').innerHTML=s.map((x,i)=>`
+        <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
+            <span class="ot">${x.room}房</span>
+            <span class="clean-badge">退房时间：${x.time}</span>
+            ${x.note?`<span class="od">${x.note}</span>`:''}
+            <span class="time-badge">${x.date} ${x.submit_time}</span>
+        </div>
+    `).join('');
+}
+
 function toggleSound() {
     soundEnabled = !soundEnabled;
     document.getElementById('soundBtn').innerHTML = soundEnabled ? 
@@ -742,13 +783,14 @@ function playNotification() {
     } catch(e) {}
 }
 
-let lastO = 0, lastC = 0;
+let lastO = 0, lastC = 0, lastCK = 0;
 async function refreshWithSound() {
-    const prevO = lastO, prevC = lastC;
-    await Promise.all([loadO(), loadC()]);
+    const prevO = lastO, prevC = lastC, prevCK = lastCK;
+    await Promise.all([loadO(), loadC(), loadCK()]);
     lastO = parseInt(document.getElementById('oc').textContent) || 0;
     lastC = parseInt(document.getElementById('cc').textContent) || 0;
-    if (lastO > prevO || lastC > prevC) {
+    lastCK = document.getElementById('ckl').querySelectorAll('.oi').length;
+    if (lastO > prevO || lastC > prevC || lastCK > prevCK) {
         playNotification();
     }
 }
@@ -781,6 +823,145 @@ def cleaning_page(): return CLEANING_HTML
 
 @app.route('/admin')
 def admin_page(): return ADMIN_HTML
+
+# ==================== 退房提醒页面 ====================
+CHECKOUT_HTML = '''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>退房提醒</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{--s:#9CAF88;--sd:#7A9568;--n:#1A2A4A;--c:#FAF8F5;--g:#C9A961;--w:#fff}
+        body{font-family:-apple-system,'Noto Sans SC',sans-serif;background:linear-gradient(135deg,#2a3f5f 0%,#1a2a4a 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .5s ease}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(30px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes checkPop{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+        .modal{background:var(--w);border-radius:24px;padding:32px 28px;width:100%;max-width:400px;position:relative;animation:slideUp .4s cubic-bezier(.4,0,.2,1);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+        .close{position:absolute;top:16px;right:16px;width:36px;height:36px;background:#f5f5f5;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+        .close:hover{background:#e0e0e0;transform:rotate(90deg)}
+        .close svg{width:18px;height:18px;stroke:#999;stroke-width:2;fill:none}
+        .title{font-size:1.4rem;font-weight:700;color:var(--n);margin-bottom:6px}
+        .subtitle{font-size:.9rem;color:#888;margin-bottom:24px}
+        .section{margin-bottom:20px}
+        .section-title{font-size:.85rem;color:#666;margin-bottom:12px;font-weight:600;display:flex;align-items:center;gap:8px}
+        .section-title::before{content:'';width:4px;height:14px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:2px}
+        .rooms{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+        .room-btn{padding:14px 8px;border:2px solid #e8e2d8;border-radius:12px;background:linear-gradient(135deg,var(--w) 0%,#f8f6f3 100%);font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;text-align:center;font-family:inherit}
+        .room-btn:hover{border-color:var(--s);transform:translateY(-2px);box-shadow:0 4px 12px rgba(156,175,136,.3)}
+        .room-btn.selected{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border-color:var(--s)}
+        .time-section{margin-top:20px;padding-top:20px;border-top:1px solid #f0f0f0;display:none}
+        .time-section.show{display:block}
+        .time-label{font-size:.85rem;color:#666;margin-bottom:12px;font-weight:500}
+        .time-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+        .time-btn{padding:12px 8px;border:2px solid #e8e2d8;border-radius:10px;background:var(--w);font-size:.9rem;cursor:pointer;transition:all .3s;text-align:center;font-family:inherit;font-weight:500}
+        .time-btn:hover{border-color:var(--s)}
+        .time-btn.selected{background:var(--s);color:#fff;border-color:var(--s)}
+        .note-input{width:100%;padding:12px 16px;border:2px solid #e8e2d8;border-radius:10px;font-size:.9rem;font-family:inherit;transition:all .2s;margin-top:12px;resize:none}
+        .note-input:focus{outline:none;border-color:var(--s);box-shadow:0 0 0 3px rgba(156,175,136,.2)}
+        .submit{width:100%;padding:16px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;font-family:inherit;margin-top:20px;opacity:.5}
+        .submit.active{opacity:1}
+        .submit.active:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(156,175,136,.4)}
+        .success{text-align:center;padding:20px 0;display:none}
+        .success-icon{width:72px;height:72px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;animation:checkPop .4s ease}
+        .success svg{width:36px;height:36px;stroke:#fff;stroke-width:2;fill:none}
+        .success h3{font-size:1.2rem;color:var(--n);margin-bottom:6px}
+        .success p{font-size:.85rem;color:#888}
+        .form-content.hidden{display:none}
+    </style>
+</head>
+<body>
+<div class="modal">
+    <button class="close" onclick="location.reload()">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    
+    <div class="form-content" id="formContent">
+        <div class="title">退房提醒</div>
+        <div class="subtitle">请选择您的房间和退房时间</div>
+        
+        <div class="section">
+            <div class="section-title">选择房号</div>
+            <div class="rooms" id="roomSel"></div>
+        </div>
+        
+        <div class="section time-section" id="timeSection">
+            <div class="section-title">退房时间</div>
+            <div class="time-grid" id="timeGrid">
+                <button class="time-btn" onclick="selectTime(this,'8:00-9:00')">8:00-9:00</button>
+                <button class="time-btn" onclick="selectTime(this,'9:00-10:00')">9:00-10:00</button>
+                <button class="time-btn" onclick="selectTime(this,'10:00-11:00')">10:00-11:00</button>
+                <button class="time-btn" onclick="selectTime(this,'11:00-12:00')">11:00-12:00</button>
+            </div>
+            <textarea class="note-input" id="noteInput" placeholder="备注信息（选填）" rows="2"></textarea>
+        </div>
+        
+        <button class="submit" id="submitBtn" onclick="submitForm()">提交退房提醒</button>
+    </div>
+    
+    <div class="success" id="successMsg">
+        <div class="success-icon">
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h3>提交成功！</h3>
+        <p id="resultMsg">退房提醒已记录</p>
+    </div>
+</div>
+
+<script>
+const rooms = ['101','201','202','203','204','205','301','302','303','304','305','306'];
+let selectedRoom = '';
+let selectedTime = '';
+
+document.getElementById('roomSel').innerHTML = rooms.map((r,i) => 
+    `<button class="room-btn" onclick="selectRoom('${r}')" style="animation-delay:${i*0.05}s">${r}</button>`
+).join('');
+
+function selectRoom(room) {
+    selectedRoom = room;
+    selectedTime = '';
+    document.querySelectorAll('.room-btn').forEach(b => b.classList.remove('selected'));
+    event.target.classList.add('selected');
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('timeSection').classList.add('show');
+    document.getElementById('submitBtn').classList.remove('active');
+}
+
+function selectTime(el, time) {
+    selectedTime = time;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('submitBtn').classList.add('active');
+}
+
+async function submitForm() {
+    if (!selectedRoom || !selectedTime) return;
+    
+    const btn = document.getElementById('submitBtn');
+    btn.textContent = '提交中...';
+    btn.disabled = true;
+    
+    const note = document.getElementById('noteInput').value;
+    
+    try {
+        await fetch('/api/checkout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({room: selectedRoom, time: selectedTime, note: note})
+        });
+        document.getElementById('formContent').classList.add('hidden');
+        document.getElementById('successMsg').style.display = 'block';
+        document.getElementById('resultMsg').textContent = 
+            `${selectedRoom}房 退房时间：${selectedTime} 已记录`;
+    } catch(e) {
+        alert('提交失败，请重试');
+        btn.textContent = '提交退房提醒';
+        btn.disabled = false;
+    }
+}
+</script>
+</body></html>'''
 
 @app.route('/api/breakfast', methods=['GET'])
 def get_breakfast():
@@ -855,6 +1036,32 @@ def mark_cleaning():
             r['status'] = data.get('status', 'seen')
             break
     save_json(CLEANING_FILE, records)
+    return jsonify({'success': True})
+
+@app.route('/api/checkout', methods=['GET'])
+def get_checkout():
+    days = request.args.get('days', 7, type=int)
+    records = load_json(CHECKOUT_FILE, [])
+    if days > 0:
+        cutoff = datetime.now().timestamp() - (days * 86400)
+        records = [r for r in records if datetime.fromisoformat(r['timestamp']).timestamp() > cutoff]
+    return jsonify(records)
+
+@app.route('/api/checkout', methods=['POST'])
+def add_checkout():
+    data = request.json
+    records = load_json(CHECKOUT_FILE, [])
+    now = datetime.now()
+    record = {
+        'room': data.get('room', ''),
+        'time': data.get('time', ''),
+        'note': data.get('note', ''),
+        'timestamp': now.isoformat(),
+        'submit_time': now.strftime('%H:%M'),
+        'date': now.strftime('%Y-%m-%d')
+    }
+    records.append(record)
+    save_json(CHECKOUT_FILE, records)
     return jsonify({'success': True})
 
 if __name__ == '__main__':
