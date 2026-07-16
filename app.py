@@ -541,6 +541,15 @@ ADMIN_HTML = '''<!DOCTYPE html>
         .time-badge{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%);color:#1976d2;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
         .clean-badge{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);color:#388e3c;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
         .skip-badge{background:linear-gradient(135deg,#fce4ec 0%,#f8bbd9 100%);color:#c2185b;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
+        .done-badge{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%);color:#1565c0;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
+        .action-btn{padding:6px 12px;border:none;border-radius:8px;font-size:.75rem;cursor:pointer;transition:all .2s;font-family:inherit;font-weight:500;margin-left:8px}
+        .action-btn.done{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff}
+        .action-btn.done:hover{transform:scale(1.05)}
+        .action-btn.seen{background:linear-gradient(135deg,var(--g),#b89a4a);color:#fff}
+        .action-btn.seen:hover{transform:scale(1.05)}
+        .action-btn.mute{background:linear-gradient(135deg,#9e9e9e,#757575);color:#fff}
+        .action-btn.mute:hover{transform:scale(1.05)}
+        .sound-control{position:fixed;bottom:20px;right:20px;z-index:100}
         .login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#2a3f5f 0%,#1a2a4a 100%);display:flex;align-items:center;justify-content:center;z-index:1000}
         .login-card{background:#fff;border-radius:24px;padding:40px;width:100%;max-width:360px;text-align:center;animation:slideUp .4s ease}
         @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
@@ -638,7 +647,15 @@ ADMIN_HTML = '''<!DOCTYPE html>
     </div>
 </div>
 
+<!-- 停止响声按钮 -->
+<div class="sound-control">
+    <button class="action-btn mute" id="soundBtn" onclick="toggleSound()" style="width:48px;height:48px;border-radius:50%;font-size:1.2rem;display:flex;align-items:center;justify-content:center;">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+</div>
+
 <script>
+let soundEnabled = true;
 async function refresh(){await Promise.all([loadO(),loadC()]);}
 async function loadO(){
     const days=document.getElementById('breakfastFilter').value;
@@ -653,7 +670,10 @@ async function loadO(){
         <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
             <span class="ot">${x.room}房</span>
             <span class="od">汤:${x.soup} 葱:${x.onion} 香:${x.herb} ${x.mealtime?'| 用餐:'+x.mealtime:''}</span>
+            ${x.status==='done'?'<span class="done-badge">已做好</span>':''}
             <span class="time-badge">${x.date} ${x.time}</span>
+            ${x.status!=='done'?`<button class="action-btn done" onclick="markDone('${x.timestamp}')">已做好</button>`:''}
+            ${x.status!=='seen'?`<button class="action-btn seen" onclick="markSeen('${x.timestamp}')">看到了</button>`:''}
         </div>
     `).join('');
 }
@@ -670,12 +690,43 @@ async function loadC(){
         <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
             <span class="ot">${x.room}房</span>
             <span class="${x.need==='yes'?'clean-badge':'skip-badge'}">${x.need==='yes'?'需要打扫':'免打扰'}</span>
+            ${x.status==='done'?'<span class="done-badge">已打扫</span>':''}
             <span class="time-badge">${x.date} ${x.time}</span>
+            ${x.status!=='done'?`<button class="action-btn done" onclick="markCleanDone('${x.timestamp}')">已打扫</button>`:''}
+            ${x.status!=='seen'?`<button class="action-btn seen" onclick="markCleanSeen('${x.timestamp}')">看到了</button>`:''}
         </div>
     `).join('');
 }
 
+async function markDone(ts) {
+    await fetch('/api/breakfast/mark', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({timestamp:ts, status:'done'})});
+    loadO();
+}
+
+async function markSeen(ts) {
+    await fetch('/api/breakfast/mark', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({timestamp:ts, status:'seen'})});
+    loadO();
+}
+
+async function markCleanDone(ts) {
+    await fetch('/api/cleaning/mark', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({timestamp:ts, status:'done'})});
+    loadC();
+}
+
+async function markCleanSeen(ts) {
+    await fetch('/api/cleaning/mark', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({timestamp:ts, status:'seen'})});
+    loadC();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById('soundBtn').innerHTML = soundEnabled ? 
+        '<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' : 
+        '<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+}
+
 function playNotification() {
+    if (!soundEnabled) return;
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioCtx.createOscillator();
@@ -759,6 +810,17 @@ def add_breakfast():
     save_json(BREAKFAST_FILE, orders)
     return jsonify({'success': True})
 
+@app.route('/api/breakfast/mark', methods=['POST'])
+def mark_breakfast():
+    data = request.json
+    orders = load_json(BREAKFAST_FILE, [])
+    for o in orders:
+        if o['timestamp'] == data.get('timestamp'):
+            o['status'] = data.get('status', 'seen')
+            break
+    save_json(BREAKFAST_FILE, orders)
+    return jsonify({'success': True})
+
 @app.route('/api/cleaning', methods=['GET'])
 def get_cleaning():
     days = request.args.get('days', 7, type=int)
@@ -781,6 +843,17 @@ def add_cleaning():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
+    save_json(CLEANING_FILE, records)
+    return jsonify({'success': True})
+
+@app.route('/api/cleaning/mark', methods=['POST'])
+def mark_cleaning():
+    data = request.json
+    records = load_json(CLEANING_FILE, [])
+    for r in records:
+        if r['timestamp'] == data.get('timestamp'):
+            r['status'] = data.get('status', 'seen')
+            break
     save_json(CLEANING_FILE, records)
     return jsonify({'success': True})
 
