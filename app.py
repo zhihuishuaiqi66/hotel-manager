@@ -541,9 +541,36 @@ ADMIN_HTML = '''<!DOCTYPE html>
         .time-badge{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%);color:#1976d2;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
         .clean-badge{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);color:#388e3c;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
         .skip-badge{background:linear-gradient(135deg,#fce4ec 0%,#f8bbd9 100%);color:#c2185b;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
+        .login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#2a3f5f 0%,#1a2a4a 100%);display:flex;align-items:center;justify-content:center;z-index:1000}
+        .login-card{background:#fff;border-radius:24px;padding:40px;width:100%;max-width:360px;text-align:center;animation:slideUp .4s ease}
+        @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+        .login-icon{width:80px;height:80px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:2rem}
+        .login-title{font-size:1.4rem;font-weight:700;color:var(--n);margin-bottom:8px}
+        .login-subtitle{font-size:.9rem;color:#888;margin-bottom:28px}
+        .login-input{width:100%;padding:16px;border:2px solid #e8e2d8;border-radius:12px;font-size:1rem;font-family:inherit;text-align:center;letter-spacing:0.1em;transition:all .3s}
+        .login-input:focus{outline:none;border-color:var(--s);box-shadow:0 0 0 3px rgba(156,175,136,.2)}
+        .login-btn{width:100%;padding:16px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;font-family:inherit;margin-top:20px}
+        .login-btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(156,175,136,.4)}
+        .login-error{color:var(--r);font-size:.85rem;margin-top:12px;display:none}
+        .admin-content{display:none}
+        .admin-content.show{display:block}
     </style>
 </head>
 <body>
+<!-- 登录弹窗 -->
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+        <div class="login-icon">🔐</div>
+        <div class="login-title">后台管理</div>
+        <div class="login-subtitle">请输入访问密码</div>
+        <input type="password" class="login-input" id="loginInput" placeholder="请输入密码" onkeypress="if(event.key==='Enter')checkLogin()">
+        <button class="login-btn" onclick="checkLogin()">进入后台</button>
+        <div class="login-error" id="loginError">密码错误，请重试</div>
+    </div>
+</div>
+
+<!-- 管理内容 -->
+<div class="admin-content" id="adminContent">
 <div class="hd">
     <div class="hdc">
         <div class="hd-left">
@@ -552,7 +579,7 @@ ADMIN_HTML = '''<!DOCTYPE html>
         <div class="st">
             <div class="dot"></div>
             <span>实时更新</span>
-            <button class="refresh-btn" onclick="refresh()">
+            <button class="refresh-btn" onclick="refreshWithSound()">
                 <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 刷新
             </button>
@@ -675,8 +702,19 @@ async function refreshWithSound() {
     }
 }
 
-refreshWithSound();
-setInterval(refreshWithSound, 3000);
+function checkLogin() {
+    const input = document.getElementById('loginInput').value;
+    if (input === '232566cc') {
+        document.getElementById('loginOverlay').style.display = 'none';
+        document.getElementById('adminContent').classList.add('show');
+        refreshWithSound();
+        setInterval(refreshWithSound, 3000);
+    } else {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginInput').value = '';
+        document.getElementById('loginInput').focus();
+    }
+}
 </script>
 </body></html>'''
 
