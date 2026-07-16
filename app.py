@@ -88,6 +88,15 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         .submit{width:100%;padding:16px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s;font-family:inherit;opacity:.5;margin-top:8px}
         .submit.active{opacity:1}
         .submit.active:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(156,175,136,.4)}
+        .immediate-btn{background:linear-gradient(135deg,var(--g),#b89a4a)}
+        .immediate-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(201,169,97,.4)}
+        .popup-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:1000;animation:fadeIn .3s ease}
+        .popup-overlay.show{display:flex}
+        .popup-card{background:#fff;border-radius:20px;padding:32px;max-width:320px;text-align:center;animation:slideUp .4s ease}
+        .popup-icon{font-size:3rem;margin-bottom:16px}
+        .popup-title{font-size:1.2rem;font-weight:700;color:var(--n);margin-bottom:8px}
+        .popup-msg{font-size:.9rem;color:#666;margin-bottom:20px;line-height:1.6}
+        .popup-btn{padding:12px 32px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:10px;font-size:1rem;cursor:pointer;font-family:inherit;font-weight:500}
         .success{text-align:center;padding:20px 0;display:none}
         .success-icon{width:72px;height:72px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;animation:checkPop .4s ease}
         .success svg{width:36px;height:36px;stroke:#fff;stroke-width:2;fill:none}
@@ -138,6 +147,7 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         <div id="bowlArea"></div>
         
         <button class="submit" id="submitBtn" onclick="submitAll()" disabled>提交全部订单</button>
+        <button class="submit" id="immediateBtn" onclick="immediateOrder()" style="background:linear-gradient(135deg,var(--g),#b89a4a);margin-top:12px;opacity:1">立即用餐</button>
     </div>
     
     <div class="success" id="successMsg">
@@ -147,6 +157,16 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         <h3>预订成功！</h3>
         <p id="resultMsg">您的早餐已记录</p>
         <button class="btn-outline" onclick="location.reload()">继续预订</button>
+    </div>
+</div>
+
+<!-- 立即用餐提示弹窗 -->
+<div class="popup-overlay" id="popupOverlay" onclick="closePopup()">
+    <div class="popup-card" onclick="event.stopPropagation()">
+        <div class="popup-icon">🍳</div>
+        <div class="popup-title">已收到您的订单</div>
+        <div class="popup-msg">由于早餐是现点现做<br>需要等待 <strong>5-10分钟</strong><br>请在用餐区稍作等候</div>
+        <button class="popup-btn" onclick="closePopup()">我知道了</button>
     </div>
 </div>
 
@@ -240,6 +260,14 @@ function checkSubmit() {
     btn.disabled = !allFilled;
     if (allFilled) btn.classList.add('active');
     else btn.classList.remove('active');
+}
+
+function immediateOrder() {
+    document.getElementById('popupOverlay').classList.add('show');
+}
+
+function closePopup() {
+    document.getElementById('popupOverlay').classList.remove('show');
 }
 
 async function submitAll() {
