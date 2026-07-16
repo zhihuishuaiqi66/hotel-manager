@@ -31,6 +31,13 @@ CHECKOUT_FILE = os.path.join(DATA_DIR, 'checkout.json')
 
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
 
+def cleanup_old_data(data, days=30):
+    """删除超过指定天数的旧数据"""
+    if not data:
+        return data
+    cutoff = datetime.now().timestamp() - (days * 86400)
+    return [item for item in data if datetime.fromisoformat(item['timestamp']).timestamp() > cutoff]
+
 def http_request(url, data=None, method='GET'):
     """使用urllib发送HTTP请求"""
     headers = {
@@ -54,11 +61,21 @@ def load_json_bin(bin_id, default=None):
     if default is None:
         default = []
     if bin_id.startswith('YOUR_'):
-        return load_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), default)
+        data = load_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), default)
+        # 自动清理超过30天的数据
+        cleaned = cleanup_old_data(data, 30)
+        if len(cleaned) != len(data):
+            save_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), cleaned)
+        return cleaned
     try:
         result = http_request(f'{JSONBIN_BASE_URL}/b/{bin_id}/latest')
         if result and 'record' in result:
-            return result['record']
+            data = result['record']
+            # 自动清理超过30天的数据
+            cleaned = cleanup_old_data(data, 30)
+            if len(cleaned) != len(data):
+                save_json_bin(bin_id, cleaned)
+            return cleaned
     except:
         pass
     return load_json_local(os.path.join(DATA_DIR, 'backup.json'), default)
@@ -595,11 +612,14 @@ ADMIN_HTML = '''<!DOCTYPE html>
         .bdg{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;padding:6px 16px;border-radius:20px;font-size:.8rem;font-weight:600;box-shadow:0 2px 10px rgba(156,175,136,.3)}
         
         .cd{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.06)}
-        .oi{padding:16px 20px;border-bottom:1px solid #f5f5f5;display:flex;justify-content:space-between;align-items:center;font-size:.9rem;transition:all .3s ease}
+        .oi{padding:16px 20px;border-bottom:1px solid #f5f5f5;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.9rem;transition:all .3s ease}
         .oi:last-child{border-bottom:none}
         .oi:hover{background:linear-gradient(90deg,rgba(156,175,136,.05) 0%,transparent 100%)}
-        .ot{color:var(--g);font-weight:600}
-        .od{color:#666;flex:1;margin:0 16px}
+        .ot{color:var(--g);font-weight:700;font-size:1rem}
+        .od{color:#555;flex:1}
+        .soup-tag{background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);color:#e65100;padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:500}
+        .onion-tag{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);color:#2e7d32;padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:500}
+        .herb-tag{background:linear-gradient(135deg,#f3e5f5 0%,#e1bee7 100%);color:#7b1fa2;padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:500}
         .em{text-align:center;padding:60px 20px;color:#aaa;font-size:.9rem}
         .em svg{width:64px;height:64px;stroke:#ddd;stroke-width:1;fill:none;margin-bottom:16px;opacity:.5}
         
@@ -756,7 +776,9 @@ async function loadO(){
     document.getElementById('ol').innerHTML=s.map((x,i)=>`
         <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
             <span class="ot">${x.room}房</span>
-            <span class="od">汤:${x.soup} 葱:${x.onion} 香:${x.herb}</span>
+            <span class="soup-tag">${x.soup}</span>
+            <span class="onion-tag">葱:${x.onion}</span>
+            <span class="herb-tag">香:${x.herb}</span>
             ${x.status==='done'?'<span class="done-badge">已做好</span>':''}
             <span class="time-badge">${x.date} ${x.time}</span>
             ${x.status!=='done'?`<button class="action-btn done" onclick="markDone('${x.timestamp}')">已做好</button>`:''}
