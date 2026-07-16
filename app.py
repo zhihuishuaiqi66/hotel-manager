@@ -5,24 +5,62 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
 import os
+import requests
 from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
+# jsonbin.io 配置
+JSONBIN_API_KEY = '$2a$10$OtB67RgvcKDa52mDq4yu8.mOv1Ny8HlWc1EAIzhlLd/AWBnlhd8K2'
+JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3'
+
+# Bin IDs（首次运行时需要创建，这里用默认值）
+BREAKFAST_BIN_ID = 'YOUR_BREAKFAST_BIN_ID'
+CLEANING_BIN_ID = 'YOUR_CLEANING_BIN_ID'
+CHECKOUT_BIN_ID = 'YOUR_CHECKOUT_BIN_ID'
+
+# 本地JSON文件作为备用
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
 BREAKFAST_FILE = os.path.join(DATA_DIR, 'breakfast.json')
 CLEANING_FILE = os.path.join(DATA_DIR, 'cleaning.json')
+CHECKOUT_FILE = os.path.join(DATA_DIR, 'checkout.json')
 
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
 
-BREAKFAST_FILE = os.path.join(DATA_DIR, 'breakfast.json')
-CLEANING_FILE = os.path.join(DATA_DIR, 'cleaning.json')
-CHECKOUT_FILE = os.path.join(DATA_DIR, 'checkout.json')
+def load_json_bin(bin_id, default=None):
+    """从jsonbin.io加载数据"""
+    if default is None:
+        default = []
+    if bin_id.startswith('YOUR_'):
+        return load_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), default)
+    try:
+        headers = {'X-Master-Key': JSONBIN_API_KEY}
+        response = requests.get(f'{JSONBIN_BASE_URL}/b/{bin_id}/latest', headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get('record', default)
+    except:
+        pass
+    return load_json_local(os.path.join(DATA_DIR, 'backup.json'), default)
 
-def load_json(filepath, default=None):
+def save_json_bin(bin_id, data):
+    """保存数据到jsonbin.io"""
+    if bin_id.startswith('YOUR_'):
+        filepath = os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json')
+        save_json_local(filepath, data)
+        return
+    try:
+        headers = {'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json'}
+        response = requests.put(f'{JSONBIN_BASE_URL}/b/{bin_id}', headers=headers, json=data, timeout=10)
+        if response.status_code != 200:
+            save_json_local(os.path.join(DATA_DIR, 'backup.json'), data)
+    except:
+        save_json_local(os.path.join(DATA_DIR, 'backup.json'), data)
+
+def load_json_local(filepath, default=None):
     if default is None: default = []
     if os.path.exists(filepath):
         try:
@@ -30,7 +68,7 @@ def load_json(filepath, default=None):
         except: return default
     return default
 
-def save_json(filepath, data):
+def save_json_local(filepath, data):
     with open(filepath, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=2)
 
 # ==================== 早餐页面（弹窗卡片式） ====================
@@ -976,7 +1014,7 @@ async function submitForm() {
 @app.route('/api/breakfast', methods=['GET'])
 def get_breakfast():
     days = request.args.get('days', 7, type=int)
-    orders = load_json(BREAKFAST_FILE, [])
+    orders = load_json_bin(BREAKFAST_BIN_ID, [])
     if days > 0:
         cutoff = datetime.now().timestamp() - (days * 86400)
         orders = [o for o in orders if datetime.fromisoformat(o['timestamp']).timestamp() > cutoff]
@@ -985,37 +1023,36 @@ def get_breakfast():
 @app.route('/api/breakfast', methods=['POST'])
 def add_breakfast():
     data = request.json
-    orders = load_json(BREAKFAST_FILE, [])
+    orders = load_json_bin(BREAKFAST_BIN_ID, [])
     now = datetime.now()
     order = {
         'room': data.get('room', ''),
         'soup': data.get('soup', ''),
         'onion': data.get('onion', ''),
         'herb': data.get('herb', ''),
-        
         'timestamp': now.isoformat(),
         'time': now.strftime('%H:%M'),
         'date': now.strftime('%Y-%m-%d')
     }
     orders.append(order)
-    save_json(BREAKFAST_FILE, orders)
+    save_json_bin(BREAKFAST_BIN_ID, orders)
     return jsonify({'success': True})
 
 @app.route('/api/breakfast/mark', methods=['POST'])
 def mark_breakfast():
     data = request.json
-    orders = load_json(BREAKFAST_FILE, [])
+    orders = load_json_bin(BREAKFAST_BIN_ID, [])
     for o in orders:
         if o['timestamp'] == data.get('timestamp'):
             o['status'] = data.get('status', 'seen')
             break
-    save_json(BREAKFAST_FILE, orders)
+    save_json_bin(BREAKFAST_BIN_ID, orders)
     return jsonify({'success': True})
 
 @app.route('/api/cleaning', methods=['GET'])
 def get_cleaning():
     days = request.args.get('days', 7, type=int)
-    records = load_json(CLEANING_FILE, [])
+    records = load_json_bin(CLEANING_BIN_ID, [])
     if days > 0:
         cutoff = datetime.now().timestamp() - (days * 86400)
         records = [r for r in records if datetime.fromisoformat(r['timestamp']).timestamp() > cutoff]
@@ -1024,7 +1061,7 @@ def get_cleaning():
 @app.route('/api/cleaning', methods=['POST'])
 def add_cleaning():
     data = request.json
-    records = load_json(CLEANING_FILE, [])
+    records = load_json_bin(CLEANING_BIN_ID, [])
     now = datetime.now()
     record = {
         'room': data.get('room', ''),
@@ -1034,24 +1071,24 @@ def add_cleaning():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
-    save_json(CLEANING_FILE, records)
+    save_json_bin(CLEANING_BIN_ID, records)
     return jsonify({'success': True})
 
 @app.route('/api/cleaning/mark', methods=['POST'])
 def mark_cleaning():
     data = request.json
-    records = load_json(CLEANING_FILE, [])
+    records = load_json_bin(CLEANING_BIN_ID, [])
     for r in records:
         if r['timestamp'] == data.get('timestamp'):
             r['status'] = data.get('status', 'seen')
             break
-    save_json(CLEANING_FILE, records)
+    save_json_bin(CLEANING_BIN_ID, records)
     return jsonify({'success': True})
 
 @app.route('/api/checkout', methods=['GET'])
 def get_checkout():
     days = request.args.get('days', 7, type=int)
-    records = load_json(CHECKOUT_FILE, [])
+    records = load_json_bin(CHECKOUT_BIN_ID, [])
     if days > 0:
         cutoff = datetime.now().timestamp() - (days * 86400)
         records = [r for r in records if datetime.fromisoformat(r['timestamp']).timestamp() > cutoff]
@@ -1060,7 +1097,7 @@ def get_checkout():
 @app.route('/api/checkout', methods=['POST'])
 def add_checkout():
     data = request.json
-    records = load_json(CHECKOUT_FILE, [])
+    records = load_json_bin(CHECKOUT_BIN_ID, [])
     now = datetime.now()
     record = {
         'room': data.get('room', ''),
@@ -1071,8 +1108,46 @@ def add_checkout():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
-    save_json(CHECKOUT_FILE, records)
+    save_json_bin(CHECKOUT_BIN_ID, records)
     return jsonify({'success': True})
 
+def create_bins_if_needed():
+    """首次运行时创建jsonbin.io的bins"""
+    global BREAKFAST_BIN_ID, CLEANING_BIN_ID, CHECKOUT_BIN_ID
+    
+    if not BREAKFAST_BIN_ID.startswith('YOUR_'):
+        return
+    
+    headers = {'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json'}
+    
+    try:
+        # 创建早餐数据bin
+        resp = requests.post(f'{JSONBIN_BASE_URL}/b', headers=headers, json=[], timeout=10)
+        if resp.status_code == 201:
+            BREAKFAST_BIN_ID = resp.json()['id']
+            print(f"Created breakfast bin: {BREAKFAST_BIN_ID}")
+        
+        # 创建清洁数据bin
+        resp = requests.post(f'{JSONBIN_BASE_URL}/b', headers=headers, json=[], timeout=10)
+        if resp.status_code == 201:
+            CLEANING_BIN_ID = resp.json()['id']
+            print(f"Created cleaning bin: {CLEANING_BIN_ID}")
+        
+        # 创建退房数据bin
+        resp = requests.post(f'{JSONBIN_BASE_URL}/b', headers=headers, json=[], timeout=10)
+        if resp.status_code == 201:
+            CHECKOUT_BIN_ID = resp.json()['id']
+            print(f"Created checkout bin: {CHECKOUT_BIN_ID}")
+            
+        print("\n请将以下Bin ID添加到代码中：")
+        print(f"BREAKFAST_BIN_ID = '{BREAKFAST_BIN_ID}'")
+        print(f"CLEANING_BIN_ID = '{CLEANING_BIN_ID}'")
+        print(f"CHECKOUT_BIN_ID = '{CHECKOUT_BIN_ID}'")
+    except Exception as e:
+        print(f"Error creating bins: {e}")
+
 if __name__ == '__main__':
+    # 首次运行时创建bins
+    if BREAKFAST_BIN_ID.startswith('YOUR_'):
+        create_bins_if_needed()
     app.run(debug=True, host='0.0.0.0', port=5000)
