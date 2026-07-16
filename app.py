@@ -5,7 +5,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
 import os
-import requests
+import urllib.request
+import urllib.parse
 from datetime import datetime
 
 app = Flask(__name__)
@@ -30,6 +31,24 @@ CHECKOUT_FILE = os.path.join(DATA_DIR, 'checkout.json')
 
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
 
+def http_request(url, data=None, method='GET'):
+    """使用urllib发送HTTP请求"""
+    headers = {
+        'X-Master-Key': JSONBIN_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    
+    if data is not None:
+        data = json.dumps(data).encode('utf-8')
+    
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except Exception as e:
+        return None
+
 def load_json_bin(bin_id, default=None):
     """从jsonbin.io加载数据"""
     if default is None:
@@ -37,11 +56,9 @@ def load_json_bin(bin_id, default=None):
     if bin_id.startswith('YOUR_'):
         return load_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), default)
     try:
-        headers = {'X-Master-Key': JSONBIN_API_KEY}
-        response = requests.get(f'{JSONBIN_BASE_URL}/b/{bin_id}/latest', headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get('record', default)
+        result = http_request(f'{JSONBIN_BASE_URL}/b/{bin_id}/latest')
+        if result and 'record' in result:
+            return result['record']
     except:
         pass
     return load_json_local(os.path.join(DATA_DIR, 'backup.json'), default)
@@ -53,9 +70,8 @@ def save_json_bin(bin_id, data):
         save_json_local(filepath, data)
         return
     try:
-        headers = {'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json'}
-        response = requests.put(f'{JSONBIN_BASE_URL}/b/{bin_id}', headers=headers, json=data, timeout=10)
-        if response.status_code != 200:
+        result = http_request(f'{JSONBIN_BASE_URL}/b/{bin_id}', data=data, method='PUT')
+        if result is None:
             save_json_local(os.path.join(DATA_DIR, 'backup.json'), data)
     except:
         save_json_local(os.path.join(DATA_DIR, 'backup.json'), data)
