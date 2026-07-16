@@ -470,54 +470,162 @@ ADMIN_HTML = '''<!DOCTYPE html>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         :root{--s:#9CAF88;--sd:#7A9568;--n:#1A2A4A;--c:#FAF8F5;--g:#C9A961;--r:#E53E3E}
-        body{font-family:-apple-system,'Noto Sans SC',sans-serif;background:var(--c);min-height:100vh}
-        .hd{background:linear-gradient(135deg,var(--n),#0f1a2e);color:#fff;padding:16px 20px;position:sticky;top:0;z-index:100}
-        .hdc{max-width:800px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
-        .hd h1{font-size:1.2rem;font-weight:600}
-        .st{font-size:.75rem;opacity:.8;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);padding:6px 12px;border-radius:20px}
-        .dot{width:8px;height:8px;background:#48BB78;border-radius:50%;animation:pulse 2s infinite}
-        @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(72,187,120,.4)}50%{opacity:.8;box-shadow:0 0 0 6px rgba(72,187,120,0)}}
-        .ct{max-width:800px;margin:0 auto;padding:20px}
-        .sec{margin-bottom:24px}
-        .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-        .stl{font-size:1rem;color:var(--n);display:flex;align-items:center;gap:10px;font-weight:600}
-        .stl::before{content:'';width:4px;height:18px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:2px}
-        .bdg{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;padding:4px 12px;border-radius:20px;font-size:.75rem;font-weight:600}
-        .cd{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.06)}
-        .oi{padding:14px 18px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;font-size:.9rem}
+        body{font-family:-apple-system,'Noto Sans SC',sans-serif;background:linear-gradient(135deg,#f5f0e8 0%,#e8e2d8 100%);min-height:100vh;animation:fadeIn .6s ease}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(72,187,120,.4)}50%{opacity:.8;box-shadow:0 0 0 8px rgba(72,187,120,0)}}
+        @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        @keyframes glow{0%,100%{box-shadow:0 0 5px var(--s)}50%{box-shadow:0 0 20px var(--s)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+        @keyframes countUp{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
+        
+        .hd{background:linear-gradient(135deg,var(--n) 0%,#0f1a2e 100%);color:#fff;padding:20px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+        .hdc{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+        .hd-left{display:flex;align-items:center;gap:12px}
+        .hd h1{font-size:1.3rem;font-weight:700;letter-spacing:.5px}
+        .st{font-size:.75rem;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);padding:8px 16px;border-radius:20px;backdrop-filter:blur(10px)}
+        .dot{width:10px;height:10px;background:#48BB78;border-radius:50%;animation:pulse 2s infinite;position:relative}
+        .dot::after{content:'';position:absolute;top:-3px;left:-3px;right:-3px;bottom:-3px;border:2px solid #48BB78;border-radius:50%;animation:pulse 2s infinite}
+        .ct{max-width:900px;margin:0 auto;padding:24px 20px}
+        
+        .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px}
+        .stat-card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;overflow:hidden;animation:slideIn .5s ease}
+        .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--s),var(--sd));transform:scaleX(0);transform-origin:left;transition:transform .5s ease}
+        .stat-card:hover::before{transform:scaleX(1)}
+        .stat-card:hover{transform:translateY(-4px);box-shadow:0 8px 30px rgba(0,0,0,.1)}
+        .stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:12px}
+        .stat-card:first-child .stat-icon{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%)}
+        .stat-card:last-child .stat-icon{background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%)}
+        .stat-value{font-size:2.5rem;font-weight:700;color:var(--n);animation:countUp .6s ease}
+        .stat-label{font-size:.85rem;color:#888;margin-top:4px}
+        
+        .sec{margin-bottom:28px;animation:slideIn .5s ease}
+        .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+        .stl{font-size:1.1rem;color:var(--n);display:flex;align-items:center;gap:12px;font-weight:700}
+        .stl::before{content:'';width:4px;height:20px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:2px}
+        .bdg{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;padding:6px 16px;border-radius:20px;font-size:.8rem;font-weight:600;box-shadow:0 2px 10px rgba(156,175,136,.3)}
+        
+        .cd{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+        .oi{padding:16px 20px;border-bottom:1px solid #f5f5f5;display:flex;justify-content:space-between;align-items:center;font-size:.9rem;transition:all .3s ease}
         .oi:last-child{border-bottom:none}
+        .oi:hover{background:linear-gradient(90deg,rgba(156,175,136,.05) 0%,transparent 100%)}
         .ot{color:var(--g);font-weight:600}
-        .od{color:#666}
-        .em{text-align:center;padding:40px;color:#aaa;font-size:.9rem}
+        .od{color:#666;flex:1;margin:0 16px}
+        .em{text-align:center;padding:60px 20px;color:#aaa;font-size:.9rem}
+        .em svg{width:64px;height:64px;stroke:#ddd;stroke-width:1;fill:none;margin-bottom:16px;opacity:.5}
+        
+        .refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:20px;font-size:.8rem;cursor:pointer;transition:all .3s;font-family:inherit}
+        .refresh-btn:hover{transform:scale(1.05);box-shadow:0 4px 15px rgba(156,175,136,.4)}
+        .refresh-btn svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none}
+        
+        .time-badge{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%);color:#1976d2;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
+        .clean-badge{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);color:#388e3c;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
+        .skip-badge{background:linear-gradient(135deg,#fce4ec 0%,#f8bbd9 100%);color:#c2185b;padding:4px 10px;border-radius:12px;font-size:.75rem;font-weight:500}
     </style>
 </head>
 <body>
-<div class="hd"><div class="hdc"><h1>后台管理</h1><div class="st"><div class="dot"></div><span>实时更新</span></div></div></div>
-<div class="ct">
-    <div class="sec">
-        <div class="sh"><div class="stl">早餐订单</div><div class="bdg" id="oc">0</div></div>
-        <div class="cd" id="ol"><div class="em">暂无订单</div></div>
-    </div>
-    <div class="sec">
-        <div class="sh"><div class="stl">清洁请求</div><div class="bdg" id="cc">0</div></div>
-        <div class="cd" id="cl"><div class="em">暂无请求</div></div>
+<div class="hd">
+    <div class="hdc">
+        <div class="hd-left">
+            <h1>后台管理</h1>
+        </div>
+        <div class="st">
+            <div class="dot"></div>
+            <span>实时更新</span>
+            <button class="refresh-btn" onclick="refresh()">
+                <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                刷新
+            </button>
+        </div>
     </div>
 </div>
+
+<div class="ct">
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-icon">🍜</div>
+            <div class="stat-value" id="oc">0</div>
+            <div class="stat-label">早餐订单</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🧹</div>
+            <div class="stat-value" id="cc">0</div>
+            <div class="stat-label">清洁请求</div>
+        </div>
+    </div>
+    
+    <div class="sec">
+        <div class="sh">
+            <div class="stl">早餐订单</div>
+            <select id="breakfastFilter" onchange="loadO()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer">
+                <option value="1">今天</option>
+                <option value="3">近3天</option>
+                <option value="7" selected>近7天</option>
+                <option value="30">近30天</option>
+            </select>
+        </div>
+        <div class="cd" id="ol">
+            <div class="em">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p>暂无订单</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="sec">
+        <div class="sh">
+            <div class="stl">清洁请求</div>
+            <select id="cleaningFilter" onchange="loadC()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer">
+                <option value="1">今天</option>
+                <option value="3">近3天</option>
+                <option value="7" selected>近7天</option>
+                <option value="30">近30天</option>
+            </select>
+        </div>
+        <div class="cd" id="cl">
+            <div class="em">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p>暂无请求</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 async function refresh(){await Promise.all([loadO(),loadC()]);}
 async function loadO(){
-    const r=await fetch('/api/breakfast');const o=await r.json();
+    const days=document.getElementById('breakfastFilter').value;
+    const r=await fetch(`/api/breakfast?days=${days}`);const o=await r.json();
     document.getElementById('oc').textContent=o.length;
-    if(!o.length){document.getElementById('ol').innerHTML='<div class="em">暂无订单</div>';return;}
-    const s=[...o].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,30);
-    document.getElementById('ol').innerHTML=s.map(x=>`<div class="oi"><span class="ot">${x.room}房</span><span class="od">汤:${x.soup} 葱:${x.onion} 香:${x.herb}</span><span class="ot">${x.time}</span></div>`).join('');
+    if(!o.length){
+        document.getElementById('ol').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无订单</p></div>';
+        return;
+    }
+    const s=[...o].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    document.getElementById('ol').innerHTML=s.map((x,i)=>`
+        <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
+            <span class="ot">${x.room}房</span>
+            <span class="od">汤:${x.soup} 葱:${x.onion} 香:${x.herb}</span>
+            <span class="time-badge">${x.date} ${x.time}</span>
+        </div>
+    `).join('');
 }
 async function loadC(){
-    const r=await fetch('/api/cleaning');const c=await r.json();
+    const days=document.getElementById('cleaningFilter').value;
+    const r=await fetch(`/api/cleaning?days=${days}`);const c=await r.json();
     document.getElementById('cc').textContent=c.length;
-    if(!c.length){document.getElementById('cl').innerHTML='<div class="em">暂无请求</div>';return;}
-    const s=[...c].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,20);
-    document.getElementById('cl').innerHTML=s.map(x=>`<div class="oi"><span class="ot">${x.room}房</span><span class="${x.need==='yes'?'od':'ot'}">${x.need==='yes'?'需要打扫':'免打扰'}</span><span class="ot">${x.time}</span></div>`).join('');
+    if(!c.length){
+        document.getElementById('cl').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无请求</p></div>';
+        return;
+    }
+    const s=[...c].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    document.getElementById('cl').innerHTML=s.map((x,i)=>`
+        <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
+            <span class="ot">${x.room}房</span>
+            <span class="${x.need==='yes'?'clean-badge':'skip-badge'}">${x.need==='yes'?'需要打扫':'免打扰'}</span>
+            <span class="time-badge">${x.date} ${x.time}</span>
+        </div>
+    `).join('');
 }
 refresh();setInterval(refresh,3000);
 </script>
@@ -537,7 +645,13 @@ def cleaning_page(): return CLEANING_HTML
 def admin_page(): return ADMIN_HTML
 
 @app.route('/api/breakfast', methods=['GET'])
-def get_breakfast(): return jsonify(load_json(BREAKFAST_FILE, []))
+def get_breakfast():
+    days = request.args.get('days', 7, type=int)
+    orders = load_json(BREAKFAST_FILE, [])
+    if days > 0:
+        cutoff = datetime.now().timestamp() - (days * 86400)
+        orders = [o for o in orders if datetime.fromisoformat(o['timestamp']).timestamp() > cutoff]
+    return jsonify(orders)
 
 @app.route('/api/breakfast', methods=['POST'])
 def add_breakfast():
@@ -558,7 +672,13 @@ def add_breakfast():
     return jsonify({'success': True})
 
 @app.route('/api/cleaning', methods=['GET'])
-def get_cleaning(): return jsonify(load_json(CLEANING_FILE, []))
+def get_cleaning():
+    days = request.args.get('days', 7, type=int)
+    records = load_json(CLEANING_FILE, [])
+    if days > 0:
+        cutoff = datetime.now().timestamp() - (days * 86400)
+        records = [r for r in records if datetime.fromisoformat(r['timestamp']).timestamp() > cutoff]
+    return jsonify(records)
 
 @app.route('/api/cleaning', methods=['POST'])
 def add_cleaning():
