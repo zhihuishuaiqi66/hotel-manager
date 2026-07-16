@@ -12,16 +12,13 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)
 
-# jsonbin.io 配置
-JSONBIN_API_KEY = '$2a$10$OtB67RgvcKDa52mDq4yu8.mOv1Ny8HlWc1EAIzhlLd/AWBnlhd8K2'
-JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3'
+# GitHub Gist 配置（数据永久保存）
+GITHUB_TOKEN = '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'
+BREAKFAST_GIST_ID = '9526e308e5a9218882247f7a6a255d48'
+CLEANING_GIST_ID = '98146e48dc4dbf0721ff161f4c501285'
+CHECKOUT_GIST_ID = '0185fad2ecf613c3a5bc838d94677aee'
 
-# Bin IDs（首次运行时需要创建，这里用默认值）
-BREAKFAST_BIN_ID = 'YOUR_BREAKFAST_BIN_ID'
-CLEANING_BIN_ID = 'YOUR_CLEANING_BIN_ID'
-CHECKOUT_BIN_ID = 'YOUR_CHECKOUT_BIN_ID'
-
-# 本地JSON文件作为备用
+# 本地JSON文件
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -31,78 +28,43 @@ CHECKOUT_FILE = os.path.join(DATA_DIR, 'checkout.json')
 
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
 
-def cleanup_old_data(data, days=30):
-    """删除超过指定天数的旧数据"""
-    if not data:
-        return data
-    cutoff = datetime.now().timestamp() - (days * 86400)
-    return [item for item in data if datetime.fromisoformat(item['timestamp']).timestamp() > cutoff]
 
-def http_request(url, data=None, method='GET'):
-    """使用urllib发送HTTP请求"""
-    headers = {
-        'X-Master-Key': JSONBIN_API_KEY,
-        'Content-Type': 'application/json'
-    }
-    
-    if data is not None:
-        data = json.dumps(data).encode('utf-8')
-    
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    
-    try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            return json.loads(response.read().decode('utf-8'))
-    except Exception as e:
-        return None
-
-def load_json_bin(bin_id, default=None):
-    """从jsonbin.io加载数据"""
+def load_gist_data(gist_id, filename='data.json', default=None):
+    """从GitHub Gist加载数据"""
     if default is None:
         default = []
-    if bin_id.startswith('YOUR_'):
-        data = load_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), default)
-        # 自动清理超过30天的数据
-        cleaned = cleanup_old_data(data, 30)
-        if len(cleaned) != len(data):
-            save_json_local(os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json'), cleaned)
-        return cleaned
     try:
-        result = http_request(f'{JSONBIN_BASE_URL}/b/{bin_id}/latest')
-        if result and 'record' in result:
-            data = result['record']
-            # 自动清理超过30天的数据
-            cleaned = cleanup_old_data(data, 30)
-            if len(cleaned) != len(data):
-                save_json_bin(bin_id, cleaned)
-            return cleaned
-    except:
-        pass
-    return load_json_local(os.path.join(DATA_DIR, 'backup.json'), default)
-
-def save_json_bin(bin_id, data):
-    """保存数据到jsonbin.io"""
-    if bin_id.startswith('YOUR_'):
-        filepath = os.path.join(DATA_DIR, bin_id.replace('YOUR_', '').lower() + '.json')
-        save_json_local(filepath, data)
-        return
-    try:
-        result = http_request(f'{JSONBIN_BASE_URL}/b/{bin_id}', data=data, method='PUT')
-        if result is None:
-            save_json_local(os.path.join(DATA_DIR, 'backup.json'), data)
-    except:
-        save_json_local(os.path.join(DATA_DIR, 'backup.json'), data)
-
-def load_json_local(filepath, default=None):
-    if default is None: default = []
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f: return json.load(f)
-        except: return default
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        req = urllib.request.Request(f'https://api.github.com/gists/{gist_id}', headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            if filename in result['files']:
+                content = result['files'][filename]['content']
+                return json.loads(content)
+    except Exception as e:
+        print(f"Error loading gist: {e}")
     return default
 
-def save_json_local(filepath, data):
-    with open(filepath, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+def save_gist_data(gist_id, data, filename='data.json'):
+    """保存数据到GitHub Gist"""
+    try:
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        }
+        payload = json.dumps({'files': {filename: {'content': json.dumps(data, ensure_ascii=False)}}}).encode('utf-8')
+        req = urllib.request.Request(f'https://api.github.com/gists/{gist_id}', data=payload, headers=headers, method='PATCH')
+        urllib.request.urlopen(req, timeout=10)
+        return True
+    except Exception as e:
+        print(f"Error saving gist: {e}")
+        return False
+
+
 
 # ==================== 早餐页面（弹窗卡片式） ====================
 BREAKFAST_HTML = '''<!DOCTYPE html>
@@ -1052,7 +1014,7 @@ async function submitForm() {
 @app.route('/api/breakfast', methods=['GET'])
 def get_breakfast():
     days = request.args.get('days', 7, type=int)
-    orders = load_json_bin(BREAKFAST_BIN_ID, [])
+    orders = load_gist_data(BREAKFAST_GIST_ID)
     if days > 0:
         cutoff = datetime.now().timestamp() - (days * 86400)
         orders = [o for o in orders if datetime.fromisoformat(o['timestamp']).timestamp() > cutoff]
@@ -1061,7 +1023,7 @@ def get_breakfast():
 @app.route('/api/breakfast', methods=['POST'])
 def add_breakfast():
     data = request.json
-    orders = load_json_bin(BREAKFAST_BIN_ID, [])
+    orders = load_gist_data(BREAKFAST_GIST_ID)
     now = datetime.now()
     order = {
         'room': data.get('room', ''),
@@ -1073,24 +1035,24 @@ def add_breakfast():
         'date': now.strftime('%Y-%m-%d')
     }
     orders.append(order)
-    save_json_bin(BREAKFAST_BIN_ID, orders)
+    save_gist_data(BREAKFAST_GIST_ID, orders)
     return jsonify({'success': True})
 
 @app.route('/api/breakfast/mark', methods=['POST'])
 def mark_breakfast():
     data = request.json
-    orders = load_json_bin(BREAKFAST_BIN_ID, [])
+    orders = load_gist_data(BREAKFAST_GIST_ID)
     for o in orders:
         if o['timestamp'] == data.get('timestamp'):
             o['status'] = data.get('status', 'seen')
             break
-    save_json_bin(BREAKFAST_BIN_ID, orders)
+    save_gist_data(BREAKFAST_GIST_ID, orders)
     return jsonify({'success': True})
 
 @app.route('/api/cleaning', methods=['GET'])
 def get_cleaning():
     days = request.args.get('days', 7, type=int)
-    records = load_json_bin(CLEANING_BIN_ID, [])
+    records = load_gist_data(CLEANING_GIST_ID)
     if days > 0:
         cutoff = datetime.now().timestamp() - (days * 86400)
         records = [r for r in records if datetime.fromisoformat(r['timestamp']).timestamp() > cutoff]
@@ -1099,7 +1061,7 @@ def get_cleaning():
 @app.route('/api/cleaning', methods=['POST'])
 def add_cleaning():
     data = request.json
-    records = load_json_bin(CLEANING_BIN_ID, [])
+    records = load_gist_data(CLEANING_GIST_ID)
     now = datetime.now()
     record = {
         'room': data.get('room', ''),
@@ -1109,24 +1071,24 @@ def add_cleaning():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
-    save_json_bin(CLEANING_BIN_ID, records)
+    save_gist_data(CLEANING_GIST_ID, records)
     return jsonify({'success': True})
 
 @app.route('/api/cleaning/mark', methods=['POST'])
 def mark_cleaning():
     data = request.json
-    records = load_json_bin(CLEANING_BIN_ID, [])
+    records = load_gist_data(CLEANING_GIST_ID)
     for r in records:
         if r['timestamp'] == data.get('timestamp'):
             r['status'] = data.get('status', 'seen')
             break
-    save_json_bin(CLEANING_BIN_ID, records)
+    save_gist_data(CLEANING_GIST_ID, records)
     return jsonify({'success': True})
 
 @app.route('/api/checkout', methods=['GET'])
 def get_checkout():
     days = request.args.get('days', 7, type=int)
-    records = load_json_bin(CHECKOUT_BIN_ID, [])
+    records = load_gist_data(CHECKOUT_GIST_ID)
     if days > 0:
         cutoff = datetime.now().timestamp() - (days * 86400)
         records = [r for r in records if datetime.fromisoformat(r['timestamp']).timestamp() > cutoff]
@@ -1135,7 +1097,7 @@ def get_checkout():
 @app.route('/api/checkout', methods=['POST'])
 def add_checkout():
     data = request.json
-    records = load_json_bin(CHECKOUT_BIN_ID, [])
+    records = load_gist_data(CHECKOUT_GIST_ID)
     now = datetime.now()
     record = {
         'room': data.get('room', ''),
@@ -1146,7 +1108,7 @@ def add_checkout():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
-    save_json_bin(CHECKOUT_BIN_ID, records)
+    save_gist_data(CHECKOUT_GIST_ID, records)
     return jsonify({'success': True})
 
 def create_bins_if_needed():
