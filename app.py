@@ -67,6 +67,9 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         .qbtn:hover{transform:scale(1.1);box-shadow:0 4px 12px rgba(0,0,0,.15)}
         .qbtn:active{transform:scale(0.95)}
         .qnum{font-size:2.2rem;font-weight:700;color:var(--n);min-width:50px;text-align:center}
+        .time-select{padding:8px 14px;border:2px solid #e8e2d8;border-radius:8px;background:var(--w);font-size:.85rem;cursor:pointer;transition:all .3s;font-family:inherit}
+        .time-select:hover{border-color:var(--s)}
+        .time-select.selected{background:var(--s);color:#fff;border-color:var(--s)}
         .bowl{background:#f8f6f3;border-radius:14px;padding:18px;margin-bottom:14px;border-left:4px solid var(--g);animation:fadeInUp .4s ease}
         .bowl-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
         .bowl-num{width:28px;height:28px;background:linear-gradient(135deg,var(--g),#b89a4a);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:600}
@@ -115,6 +118,15 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
                     <span class="qnum" id="qty">1</span>
                     <button class="qbtn" onclick="changeQty(1)">+</button>
                 </div>
+                <div style="margin-top:16px">
+                    <div style="font-size:.85rem;color:#888;margin-bottom:8px">用餐时间</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="time-select" onclick="selectMealTime(this,'7:00-8:00')">7:00-8:00</button>
+                        <button class="time-select" onclick="selectMealTime(this,'8:00-9:00')">8:00-9:00</button>
+                        <button class="time-select" onclick="selectMealTime(this,'9:00-10:00')">9:00-10:00</button>
+                    </div>
+                </div>
+                </div>
             </div>
         </div>
         
@@ -138,6 +150,7 @@ const rooms = ['101','201','202','203','204','205','301','302','303','304','305'
 let selectedRoom = '';
 let bowlCount = 0;
 let bowlData = {};
+let mealTime = '';
 
 document.getElementById('roomSel').innerHTML = rooms.map((r,i) => 
     `<button class="room-btn" onclick="selectRoom('${r}')" style="animation-delay:${i*0.05}s">${r}</button>`
@@ -205,8 +218,15 @@ function setBowl(num, key, val) {
     renderBowls();
 }
 
+function selectMealTime(el, time) {
+    mealTime = time;
+    document.querySelectorAll('.time-select').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    checkSubmit();
+}
+
 function checkSubmit() {
-    let allFilled = selectedRoom && bowlCount > 0;
+    let allFilled = selectedRoom && bowlCount > 0 && mealTime;
     for (let i = 1; i <= bowlCount; i++) {
         const d = bowlData[i] || {};
         if (!d.soup || !d.onion || !d.herb) { allFilled = false; break; }
@@ -229,7 +249,7 @@ async function submitAll() {
             await fetch('/api/breakfast', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({room: selectedRoom, ...d})
+                body: JSON.stringify({room: selectedRoom, ...d, mealtime: mealTime})
             });
             count++;
         } catch(e) {}
@@ -237,7 +257,7 @@ async function submitAll() {
     
     document.getElementById('formContent').classList.add('hidden');
     document.getElementById('successMsg').style.display = 'block';
-    document.getElementById('resultMsg').textContent = `${selectedRoom}房 ${count}碗早餐已记录`;
+    document.getElementById('resultMsg').textContent = `${selectedRoom}房 ${count}碗早餐 ${mealTime}用餐 已记录`;
 }
 </script>
 </body></html>'''
@@ -605,7 +625,7 @@ async function loadO(){
     document.getElementById('ol').innerHTML=s.map((x,i)=>`
         <div class="oi" style="animation:slideIn .3s ease ${i*0.05}s both">
             <span class="ot">${x.room}房</span>
-            <span class="od">汤:${x.soup} 葱:${x.onion} 香:${x.herb}</span>
+            <span class="od">汤:${x.soup} 葱:${x.onion} 香:${x.herb} ${x.mealtime?'| 用餐:'+x.mealtime:''}</span>
             <span class="time-badge">${x.date} ${x.time}</span>
         </div>
     `).join('');
@@ -627,7 +647,36 @@ async function loadC(){
         </div>
     `).join('');
 }
-refresh();setInterval(refresh,3000);
+
+function playNotification() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.3);
+    } catch(e) {}
+}
+
+let lastO = 0, lastC = 0;
+async function refreshWithSound() {
+    const prevO = lastO, prevC = lastC;
+    await Promise.all([loadO(), loadC()]);
+    lastO = parseInt(document.getElementById('oc').textContent) || 0;
+    lastC = parseInt(document.getElementById('cc').textContent) || 0;
+    if (lastO > prevO || lastC > prevC) {
+        playNotification();
+    }
+}
+
+refreshWithSound();
+setInterval(refreshWithSound, 3000);
 </script>
 </body></html>'''
 
@@ -663,6 +712,7 @@ def add_breakfast():
         'soup': data.get('soup', ''),
         'onion': data.get('onion', ''),
         'herb': data.get('herb', ''),
+        'mealtime': data.get('mealtime', ''),
         'timestamp': now.isoformat(),
         'time': now.strftime('%H:%M'),
         'date': now.strftime('%Y-%m-%d')
