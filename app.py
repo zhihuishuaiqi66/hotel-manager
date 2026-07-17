@@ -123,6 +123,15 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         .popup-title{font-size:1.2rem;font-weight:700;color:var(--n);margin-bottom:8px}
         .popup-msg{font-size:.9rem;color:#666;margin-bottom:20px;line-height:1.6}
         .popup-btn{padding:12px 32px;background:linear-gradient(135deg,var(--s),var(--sd));color:#fff;border:none;border-radius:10px;font-size:1rem;cursor:pointer;font-family:inherit;font-weight:500}
+        /* ===== 老人模式 ===== */
+        html.elder{font-size:21px;line-height:1.85}
+        html.elder .title{font-size:1.7rem}
+        html.elder .section-title,html.elder .subtitle{font-size:1.1rem}
+        html.elder .room-btn,html.elder .obtn,html.elder .qbtn,html.elder .popup-btn,html.elder .submit,html.elder .btn-outline{padding:18px 12px;font-size:1.1rem;min-height:58px;line-height:1.4}
+        html.elder .note-input{padding:16px;font-size:1.05rem}
+        html.elder .success p{color:#444}
+        .elder-toggle{position:fixed;right:14px;bottom:14px;z-index:9999;padding:14px 20px;border:none;border-radius:30px;background:#1A2A4A;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);font-family:inherit}
+        html.elder .elder-toggle{background:var(--g);color:#1A2A4A}
         .success{text-align:center;padding:20px 0;display:none}
         .success-icon{width:72px;height:72px;background:linear-gradient(135deg,var(--s),var(--sd));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;animation:checkPop .4s ease}
         .success svg{width:36px;height:36px;stroke:#fff;stroke-width:2;fill:none}
@@ -188,6 +197,13 @@ function immediateOrder(){document.getElementById('popupOverlay').classList.add(
 function closePopup(){document.getElementById('popupOverlay').classList.remove('show')}
 function resetForm(){selectedRoom='';bowlCount=0;bowlData={};document.getElementById('roomSel').querySelectorAll('.room-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('qtySection').style.display='none';document.getElementById('qty').textContent='1';document.getElementById('bowlArea').innerHTML='';const b=document.getElementById('submitBtn');b.disabled=true;b.classList.remove('active');b.textContent='提交全部订单';document.getElementById('successMsg').style.display='none';document.getElementById('formContent').classList.remove('hidden')}
 </script>
+<button class="elder-toggle" id="elderToggle" onclick="toggleElder()">老人模式</button>
+<script>
+function toggleElder(){var on=document.documentElement.classList.toggle('elder');try{localStorage.setItem('elder_mode',on?'1':'0')}catch(e){}updateElderBtn()}
+function updateElderBtn(){var b=document.getElementById('elderToggle');if(b)b.textContent=document.documentElement.classList.contains('elder')?'标准模式':'老人模式'}
+try{if(localStorage.getItem('elder_mode')==='1')document.documentElement.classList.add('elder')}catch(e){}
+updateElderBtn();
+</script>
 </body></html>'''
 
 # ==================== 客房清洁页面 ====================
@@ -229,6 +245,16 @@ CLEANING_HTML = '''<!DOCTYPE html>
         .opt-card:last-child .opt-icon{background:linear-gradient(135deg,#f5f5f5 0%,#e0e0e0 100%)}
         .opt-text h4{font-size:1rem;font-weight:600;color:var(--n);margin-bottom:2px}
         .opt-text p{font-size:.8rem;color:#999}
+        /* ===== 老人模式 ===== */
+        html.elder{font-size:21px;line-height:1.85}
+        html.elder .title{font-size:1.7rem}
+        html.elder .section-title,html.elder .opt-label,html.elder .time-label,html.elder .subtitle{font-size:1.1rem}
+        html.elder .room-btn,html.elder .opt-card,html.elder .time-btn,html.elder .submit,html.elder .btn-outline{padding:18px 12px;font-size:1.1rem;min-height:58px;line-height:1.4}
+        html.elder .note-input{padding:16px;font-size:1.05rem}
+        html.elder .success p,html.elder .opt-text p{color:#444}
+        html.elder .opt-card{border-width:3px}
+        .elder-toggle{position:fixed;right:14px;bottom:14px;z-index:9999;padding:14px 20px;border:none;border-radius:30px;background:#1A2A4A;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);font-family:inherit}
+        html.elder .elder-toggle{background:var(--g);color:#1A2A4A}
         .opt-check{width:22px;height:22px;border:2px solid #ddd;border-radius:50%;margin-left:auto;display:flex;align-items:center;justify-content:center;transition:all .3s;flex-shrink:0}
         .opt-card.selected .opt-check{background:var(--s);border-color:var(--s)}
         .opt-card.selected .opt-check svg{opacity:1}
@@ -303,6 +329,13 @@ function checkForm(){document.getElementById('submitBtn').classList.toggle('acti
 async function submitForm(){if(!selectedRoom||!selectedOpt)return;if(selectedOpt==='yes'&&!selectedTime)return;const b=document.getElementById('submitBtn');b.textContent='提交中...';b.disabled=true;const note=document.getElementById('noteInput').value;try{const res=await fetch('/api/cleaning',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,need:selectedOpt,time:selectedTime,note:note})});if(!res.ok)throw new Error('save failed');document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 ${selectedOpt==='yes'?'打扫时间：'+selectedTime:'免打扰'} 已记录`}catch(e){alert('提交失败，请重试');b.textContent='提交选择';b.disabled=false}}
 function resetForm(){selectedRoom='';selectedOpt='';selectedTime='';document.getElementById('roomSel').querySelectorAll('.room-btn').forEach(b=>b.classList.remove('selected'));document.querySelectorAll('.opt-card').forEach(c=>c.classList.remove('selected'));document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('optSection').style.display='none';document.getElementById('timeSection').classList.remove('show');document.getElementById('noteInput').value='';const b=document.getElementById('submitBtn');b.classList.remove('active');b.textContent='提交选择';document.getElementById('successMsg').style.display='none';document.getElementById('formContent').classList.remove('hidden')}
 </script>
+<button class="elder-toggle" id="elderToggle" onclick="toggleElder()">老人模式</button>
+<script>
+function toggleElder(){var on=document.documentElement.classList.toggle('elder');try{localStorage.setItem('elder_mode',on?'1':'0')}catch(e){}updateElderBtn()}
+function updateElderBtn(){var b=document.getElementById('elderToggle');if(b)b.textContent=document.documentElement.classList.contains('elder')?'标准模式':'老人模式'}
+try{if(localStorage.getItem('elder_mode')==='1')document.documentElement.classList.add('elder')}catch(e){}
+updateElderBtn();
+</script>
 </body></html>'''
 
 # ==================== 后台管理页面 ====================
@@ -364,6 +397,13 @@ ADMIN_HTML = '''<!DOCTYPE html>
         .herb-tag{background:linear-gradient(135deg,#f3e5f5 0%,#e1bee7 100%);color:#7b1fa2;padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:500}
         .done-badge{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%);color:#1565c0;padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:500}
         .action-btn{padding:6px 12px;border:none;border-radius:8px;font-size:.75rem;cursor:pointer;transition:all .2s;font-family:inherit;font-weight:500;margin-left:8px}
+        /* ===== 老人模式 ===== */
+        html.elder{font-size:20px;line-height:1.8}
+        html.elder .stl{font-size:1.15rem}
+        html.elder .action-btn,html.elder .refresh-btn{padding:12px 18px;font-size:.95rem;min-height:44px}
+        html.elder .stat-value{font-size:2.4rem}
+        .elder-toggle{position:fixed;right:14px;bottom:14px;z-index:10000;padding:14px 20px;border:none;border-radius:30px;background:#1A2A4A;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);font-family:inherit}
+        html.elder .elder-toggle{background:var(--g);color:#1A2A4A}
         .action-btn.done{background:linear-gradient(135deg,var(--s),var(--sd));color:#fff}
         .action-btn.done:hover{transform:scale(1.05)}
         .action-btn.seen{background:linear-gradient(135deg,var(--g),#b89a4a);color:#fff}
@@ -422,6 +462,13 @@ async function exportBackup(){try{const r=await fetch('/api/export',{headers:aut
 async function checkLogin(){const i=document.getElementById('loginInput').value;const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:i})});const j=await r.json();if(j.success){token=j.token;localStorage.setItem('admin_token',token);document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}else{document.getElementById('loginError').style.display='block';document.getElementById('loginInput').value='';document.getElementById('loginInput').focus()}}
 window.addEventListener('load',()=>{if(token){document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}});
 </script>
+<button class="elder-toggle" id="elderToggle" onclick="toggleElder()">老人模式</button>
+<script>
+function toggleElder(){var on=document.documentElement.classList.toggle('elder');try{localStorage.setItem('elder_mode',on?'1':'0')}catch(e){}updateElderBtn()}
+function updateElderBtn(){var b=document.getElementById('elderToggle');if(b)b.textContent=document.documentElement.classList.contains('elder')?'标准模式':'老人模式'}
+try{if(localStorage.getItem('elder_mode')==='1')document.documentElement.classList.add('elder')}catch(e){}
+updateElderBtn();
+</script>
 </body></html>'''
 
 # ==================== 退房提醒页面 ====================
@@ -453,6 +500,15 @@ CHECKOUT_HTML = '''<!DOCTYPE html>
         .time-section{margin-top:20px;padding-top:20px;border-top:1px solid #f0f0f0;display:none}
         .time-section.show{display:block}
         .time-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+        /* ===== 老人模式 ===== */
+        html.elder{font-size:21px;line-height:1.85}
+        html.elder .title{font-size:1.7rem}
+        html.elder .section-title,html.elder .subtitle{font-size:1.1rem}
+        html.elder .room-btn,html.elder .time-btn,html.elder .submit,html.elder .btn-outline{padding:18px 12px;font-size:1.1rem;min-height:58px;line-height:1.4}
+        html.elder .note-input{padding:16px;font-size:1.05rem}
+        html.elder .success p{color:#444}
+        .elder-toggle{position:fixed;right:14px;bottom:14px;z-index:9999;padding:14px 20px;border:none;border-radius:30px;background:#1A2A4A;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);font-family:inherit}
+        html.elder .elder-toggle{background:var(--g);color:#1A2A4A}
         .btn-outline{padding:12px 28px;background:transparent;border:2px solid var(--s);color:var(--s);border-radius:10px;cursor:pointer;font-size:.9rem;font-weight:500;transition:all .3s;font-family:inherit;margin-top:16px}
         .btn-outline:hover{background:var(--s);color:#fff}
         .time-btn{padding:12px 8px;border:2px solid #e8e2d8;border-radius:10px;background:var(--w);font-size:.9rem;cursor:pointer;transition:all .3s;text-align:center;font-family:inherit;font-weight:500}
@@ -506,6 +562,13 @@ function selectRoom(r){selectedRoom=r;selectedTime='';document.querySelectorAll(
 function selectTime(el,t){selectedTime=t;document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));el.classList.add('selected');document.getElementById('submitBtn').classList.add('active')}
 async function submitForm(){if(!selectedRoom||!selectedTime)return;const b=document.getElementById('submitBtn');b.textContent='提交中...';b.disabled=true;const note=document.getElementById('noteInput').value;try{const res=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,time:selectedTime,note:note})});if(!res.ok)throw new Error('save failed');document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 退房时间：${selectedTime} 已记录`}catch(e){alert('提交失败，请重试');b.textContent='提交退房提醒';b.disabled=false}}
 function resetForm(){selectedRoom='';selectedTime='';document.getElementById('roomSel').querySelectorAll('.room-btn').forEach(b=>b.classList.remove('selected'));document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('timeSection').classList.remove('show');document.getElementById('noteInput').value='';const b=document.getElementById('submitBtn');b.classList.remove('active');b.textContent='提交退房提醒';document.getElementById('successMsg').style.display='none';document.getElementById('formContent').classList.remove('hidden')}
+</script>
+<button class="elder-toggle" id="elderToggle" onclick="toggleElder()">老人模式</button>
+<script>
+function toggleElder(){var on=document.documentElement.classList.toggle('elder');try{localStorage.setItem('elder_mode',on?'1':'0')}catch(e){}updateElderBtn()}
+function updateElderBtn(){var b=document.getElementById('elderToggle');if(b)b.textContent=document.documentElement.classList.contains('elder')?'标准模式':'老人模式'}
+try{if(localStorage.getItem('elder_mode')==='1')document.documentElement.classList.add('elder')}catch(e){}
+updateElderBtn();
 </script>
 </body></html>'''
 
