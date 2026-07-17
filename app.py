@@ -150,6 +150,7 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         <h3>预订成功！</h3>
         <p id="resultMsg">您的早餐已记录</p>
         <button class="btn-outline" onclick="location.reload()">继续预订</button>
+        <button class="btn-outline" style="margin-left:10px;background:var(--s);color:#fff" onclick="location.href='https://hotel-manager-h65n.onrender.com/'">返回首页</button>
     </div>
 </div>
 <div class="popup-overlay" id="popupOverlay" onclick="closePopup()">
