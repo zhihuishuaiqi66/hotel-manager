@@ -7,12 +7,19 @@ import json
 import os
 import urllib.request
 from datetime import datetime
+import secrets
+import uuid
 
 app = Flask(__name__)
 CORS(app)
 
 # Firebase Realtime Database 配置
 FIREBASE_URL = "https://hotel-manager-e5c77-default-rtdb.firebaseio.com"
+
+# 后台管理密码（部署时可用环境变量 ADMIN_PASSWORD 覆盖）
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '232566cc')
+# 服务启动时生成的后台访问令牌，用于保护后台 API
+API_TOKEN = secrets.token_hex(16)
 
 ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
 
@@ -47,7 +54,13 @@ def save_firebase_data(path, data):
         print(f"Error saving to Firebase: {e}")
         return False
 
-ROOMS = ['101', '201', '202', '203', '204', '205', '301', '302', '303', '304', '305', '306']
+def token_ok():
+    """校验请求是否携带正确的后台令牌（支持 ?token= 或 Authorization: Bearer）"""
+    t = request.args.get('token') or ''
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        t = auth[7:]
+    return t == API_TOKEN
 
 # ==================== 早餐页面 ====================
 BREAKFAST_HTML = '''<!DOCTYPE html>
@@ -150,7 +163,7 @@ BREAKFAST_HTML = '''<!DOCTYPE html>
         <h3>预订成功！</h3>
         <p id="resultMsg">您的早餐已记录</p>
         <button class="btn-outline" onclick="location.reload()">继续预订</button>
-        <button class="btn-outline" style="margin-left:10px;background:var(--s);color:#fff" onclick="location.href='https://hotel-manager-h65n.onrender.com/'">返回首页</button>
+        <button class="btn-outline" style="margin-left:10px;background:var(--s);color:#fff" onclick="location.href='/'">返回首页</button>
     </div>
 </div>
 <div class="popup-overlay" id="popupOverlay" onclick="closePopup()">
@@ -170,7 +183,7 @@ function changeQty(d){bowlCount=Math.max(1,Math.min(10,bowlCount+d));document.ge
 function renderBowls(){const a=document.getElementById('bowlArea');if(bowlCount===0){a.innerHTML='';checkSubmit();return}let h='';for(let i=1;i<=bowlCount;i++){const d=bowlData[i]||{};h+=`<div class="bowl"><div class="bowl-header"><div class="bowl-num">${i}</div><div class="bowl-title">第 ${i} 碗</div></div><div class="opt-group"><div class="opt-row"><span class="opt-label">汤底</span><div class="opt-btns"><button class="obtn ${d.soup==='清汤'?'sel':''}" onclick="setBowl(${i},'soup','清汤')">清汤</button><button class="obtn ${d.soup==='红油'?'sel':''}" onclick="setBowl(${i},'soup','红油')">红油</button></div></div><div class="opt-row"><span class="opt-label">葱花</span><div class="opt-btns"><button class="obtn ${d.onion==='要'?'sel':''}" onclick="setBowl(${i},'onion','要')">要</button><button class="obtn ${d.onion==='不要'?'sel':''}" onclick="setBowl(${i},'onion','不要')">不要</button></div></div><div class="opt-row"><span class="opt-label">香菜</span><div class="opt-btns"><button class="obtn ${d.herb==='要'?'sel':''}" onclick="setBowl(${i},'herb','要')">要</button><button class="obtn ${d.herb==='不要'?'sel':''}" onclick="setBowl(${i},'herb','不要')">不要</button></div></div></div></div>`}a.innerHTML=h;checkSubmit()}
 function setBowl(n,k,v){if(!bowlData[n])bowlData[n]={};bowlData[n][k]=v;renderBowls()}
 function checkSubmit(){let ok=selectedRoom&&bowlCount>0;for(let i=1;i<=bowlCount;i++){const d=bowlData[i]||{};if(!d.soup||!d.onion||!d.herb){ok=false;break}}const b=document.getElementById('submitBtn');b.disabled=!ok;if(ok)b.classList.add('active');else b.classList.remove('active')}
-async function submitAll(){const b=document.getElementById('submitBtn');b.disabled=true;b.textContent='提交中...';let c=0;for(let i=1;i<=bowlCount;i++){const d=bowlData[i];try{await fetch('/api/breakfast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,...d})});c++}catch(e){}}document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 ${c}碗早餐已记录`}
+async function submitAll(){const b=document.getElementById('submitBtn');b.disabled=true;b.textContent='提交中...';let ok=0,fail=[];for(let i=1;i<=bowlCount;i++){const d=bowlData[i];try{const res=await fetch('/api/breakfast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,...d})});if(res.ok)ok++;else fail.push(i)}catch(e){fail.push(i)}}b.disabled=false;b.textContent='提交全部订单';if(ok===0){alert('提交失败，'+bowlCount+'碗均未记录，请检查网络后重试');return}document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';let m=`${selectedRoom}房 ${ok}碗早餐已记录`;if(fail.length)m+=`（${fail.length}碗提交失败，可点「继续预订」重填补交）`;document.getElementById('resultMsg').textContent=m}
 function immediateOrder(){document.getElementById('popupOverlay').classList.add('show')}
 function closePopup(){document.getElementById('popupOverlay').classList.remove('show')}
 </script>
@@ -282,7 +295,7 @@ function selectRoom(r){selectedRoom=r;selectedOpt='';selectedTime='';document.qu
 function selectOpt(el,v){selectedOpt=v;selectedTime='';document.querySelectorAll('.opt-card').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('timeSection').classList.toggle('show',v==='yes');checkForm()}
 function selectTime(el,t){selectedTime=t;document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));el.classList.add('selected');checkForm()}
 function checkForm(){document.getElementById('submitBtn').classList.toggle('active',selectedRoom&&selectedOpt&&(selectedOpt==='no'||selectedTime))}
-async function submitForm(){if(!selectedRoom||!selectedOpt)return;if(selectedOpt==='yes'&&!selectedTime)return;const b=document.getElementById('submitBtn');b.textContent='提交中...';b.disabled=true;const note=document.getElementById('noteInput').value;try{await fetch('/api/cleaning',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,need:selectedOpt,time:selectedTime,note:note})});document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 ${selectedOpt==='yes'?'打扫时间：'+selectedTime:'免打扰'} 已记录`}catch(e){alert('提交失败');b.textContent='提交选择';b.disabled=false}}
+async function submitForm(){if(!selectedRoom||!selectedOpt)return;if(selectedOpt==='yes'&&!selectedTime)return;const b=document.getElementById('submitBtn');b.textContent='提交中...';b.disabled=true;const note=document.getElementById('noteInput').value;try{const res=await fetch('/api/cleaning',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,need:selectedOpt,time:selectedTime,note:note})});if(!res.ok)throw new Error('save failed');document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 ${selectedOpt==='yes'?'打扫时间：'+selectedTime:'免打扰'} 已记录`}catch(e){alert('提交失败，请重试');b.textContent='提交选择';b.disabled=false}}
 </script>
 </body></html>'''
 
@@ -320,10 +333,11 @@ ADMIN_HTML = '''<!DOCTYPE html>
         .st{font-size:.75rem;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);padding:8px 16px;border-radius:20px}
         .dot{width:10px;height:10px;background:#48BB78;border-radius:50%;animation:pulse 2s infinite}
         .ct{max-width:900px;margin:0 auto;padding:24px 20px}
-        .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px}
+        .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
         .stat-card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.06);animation:slideIn .5s ease}
         .stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:12px}
         .stat-card:first-child .stat-icon{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%)}
+        .stat-card:nth-child(2) .stat-icon{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%)}
         .stat-card:last-child .stat-icon{background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%)}
         .stat-value{font-size:2.5rem;font-weight:700;color:var(--n)}
         .stat-label{font-size:.85rem;color:#888;margin-top:4px}
@@ -375,22 +389,30 @@ ADMIN_HTML = '''<!DOCTYPE html>
     <div class="stats">
         <div class="stat-card"><div class="stat-icon">🍜</div><div class="stat-value" id="oc">0</div><div class="stat-label">早餐订单</div></div>
         <div class="stat-card"><div class="stat-icon">🧹</div><div class="stat-value" id="cc">0</div><div class="stat-label">清洁请求</div></div>
+        <div class="stat-card"><div class="stat-icon">🚪</div><div class="stat-value" id="kc">0</div><div class="stat-label">退房提醒</div></div>
     </div>
     <div class="sec"><div class="sh"><div class="stl">早餐订单</div><select id="breakfastFilter" onchange="loadO()"><option value="1">今天</option><option value="3">近3天</option><option value="7" selected>近7天</option><option value="30">近30天</option></select></div><div class="cd" id="ol"><div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无订单</p></div></div></div>
     <div class="sec"><div class="sh"><div class="stl">清洁请求</div><select id="cleaningFilter" onchange="loadC()"><option value="1">今天</option><option value="3">近3天</option><option value="7" selected>近7天</option><option value="30">近30天</option></select></div><div class="cd" id="cl"><div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无请求</p></div></div></div>
+    <div class="sec"><div class="sh"><div class="stl">退房提醒</div><select id="checkoutFilter" onchange="loadK()"><option value="1">今天</option><option value="3">近3天</option><option value="7" selected>近7天</option><option value="30">近30天</option></select></div><div class="cd" id="kl"><div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无提醒</p></div></div></div>
 </div>
 </div>
 <script>
-let soundEnabled=true,lastO=0,lastC=0;
+let soundEnabled=true,lastO=0,lastC=0,lastK=0,token=localStorage.getItem('admin_token')||'';
+function authHeaders(){return {'Content-Type':'application/json','Authorization':'Bearer '+token}}
 function playNotification(){if(!soundEnabled)return;try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=800;o.type='sine';g.gain.setValueAtTime(.3,a.currentTime);g.gain.exponentialRampToValueAtTime(.01,a.currentTime+.3);o.start(a.currentTime);o.stop(a.currentTime+.3)}catch(e){}}
-async function refreshWithSound(){const pO=lastO,pC=lastC;await Promise.all([loadO(),loadC()]);lastO=parseInt(document.getElementById('oc').textContent)||0;lastC=parseInt(document.getElementById('cc').textContent)||0;if(lastO>pO||lastC>pC)playNotification()}
-async function loadO(){const d=document.getElementById('breakfastFilter').value;const r=await fetch(`/api/breakfast?days=${d}`);const o=await r.json();document.getElementById('oc').textContent=o.length;if(!o.length){document.getElementById('ol').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无订单</p></div>';return}const s=[...o].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));document.getElementById('ol').innerHTML=s.map((x,i)=>`<div class="oi"><span class="ot">${x.room}房</span><span class="soup-tag">${x.soup}</span><span class="onion-tag">葱:${x.onion}</span><span class="herb-tag">香:${x.herb}</span>${x.status==='done'?'<span class="done-badge">已做好</span>':''}<span class="time-badge">${x.date} ${x.time}</span>${x.status!=='done'?`<button class="action-btn done" onclick="markDone('${x.timestamp}')">已做好</button>`:''}${x.status!=='seen'?`<button class="action-btn seen" onclick="markSeen('${x.timestamp}')">看到了</button>`:''}</div>`).join('')}
-async function loadC(){const d=document.getElementById('cleaningFilter').value;const r=await fetch(`/api/cleaning?days=${d}`);const c=await r.json();document.getElementById('cc').textContent=c.length;if(!c.length){document.getElementById('cl').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无请求</p></div>';return}const s=[...c].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));document.getElementById('cl').innerHTML=s.map((x,i)=>`<div class="oi"><span class="ot">${x.room}房</span><span class="${x.need==='yes'?'clean-badge':'skip-badge'}">${x.need==='yes'?'需要打扫':'免打扰'}</span>${x.status==='done'?'<span class="done-badge">已打扫</span>':''}<span class="time-badge">${x.date} ${x.time}</span>${x.status!=='done'?`<button class="action-btn done" onclick="markCleanDone('${x.timestamp}')">已打扫</button>`:''}${x.status!=='seen'?`<button class="action-btn seen" onclick="markCleanSeen('${x.timestamp}')">看到了</button>`:''}</div>`).join('')}
-async function markDone(ts){await fetch('/api/breakfast/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timestamp:ts,status:'done'})});loadO()}
-async function markSeen(ts){await fetch('/api/breakfast/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timestamp:ts,status:'seen'})});loadO()}
-async function markCleanDone(ts){await fetch('/api/cleaning/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timestamp:ts,status:'done'})});loadC()}
-async function markCleanSeen(ts){await fetch('/api/cleaning/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timestamp:ts,status:'seen'})});loadC()}
-function checkLogin(){const i=document.getElementById('loginInput').value;if(i==='232566cc'){document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}else{document.getElementById('loginError').style.display='block';document.getElementById('loginInput').value='';document.getElementById('loginInput').focus()}}
+async function refreshWithSound(){const pO=lastO,pC=lastC,pK=lastK;await Promise.all([loadO(),loadC(),loadK()]);lastO=parseInt(document.getElementById('oc').textContent)||0;lastC=parseInt(document.getElementById('cc').textContent)||0;lastK=parseInt(document.getElementById('kc').textContent)||0;if(lastO>pO||lastC>pC||lastK>pK)playNotification()}
+function showLogin(){token='';localStorage.removeItem('admin_token');document.getElementById('adminContent').classList.remove('show');document.getElementById('loginOverlay').style.display='flex';document.getElementById('loginError').style.display='none'}
+async function loadO(){const d=document.getElementById('breakfastFilter').value;const r=await fetch(`/api/breakfast?days=${d}`,{headers:authHeaders()});if(r.status===401){showLogin();return}const o=await r.json();document.getElementById('oc').textContent=o.length;if(!o.length){document.getElementById('ol').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无订单</p></div>';return}const s=[...o].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));document.getElementById('ol').innerHTML=s.map((x,i)=>`<div class="oi"><span class="ot">${x.room}房</span><span class="soup-tag">${x.soup}</span><span class="onion-tag">葱:${x.onion}</span><span class="herb-tag">香:${x.herb}</span>${x.status==='done'?'<span class="done-badge">已做好</span>':''}<span class="time-badge">${x.date} ${x.time}</span>${x.status!=='done'?`<button class="action-btn done" onclick="markDone('${x.id||x.timestamp}')">已做好</button>`:''}${x.status!=='seen'?`<button class="action-btn seen" onclick="markSeen('${x.id||x.timestamp}')">看到了</button>`:''}</div>`).join('')}
+async function loadC(){const d=document.getElementById('cleaningFilter').value;const r=await fetch(`/api/cleaning?days=${d}`,{headers:authHeaders()});if(r.status===401){showLogin();return}const c=await r.json();document.getElementById('cc').textContent=c.length;if(!c.length){document.getElementById('cl').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无请求</p></div>';return}const s=[...c].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));document.getElementById('cl').innerHTML=s.map((x,i)=>`<div class="oi"><span class="ot">${x.room}房</span><span class="${x.need==='yes'?'clean-badge':'skip-badge'}">${x.need==='yes'?'需要打扫':'免打扰'}</span>${x.status==='done'?'<span class="done-badge">已打扫</span>':''}<span class="time-badge">${x.date} ${x.time}</span>${x.status!=='done'?`<button class="action-btn done" onclick="markCleanDone('${x.id||x.timestamp}')">已打扫</button>`:''}${x.status!=='seen'?`<button class="action-btn seen" onclick="markCleanSeen('${x.id||x.timestamp}')">看到了</button>`:''}</div>`).join('')}
+async function loadK(){const d=document.getElementById('checkoutFilter').value;const r=await fetch(`/api/checkout?days=${d}`,{headers:authHeaders()});if(r.status===401){showLogin();return}const k=await r.json();document.getElementById('kc').textContent=k.length;if(!k.length){document.getElementById('kl').innerHTML='<div class="em"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无提醒</p></div>';return}const s=[...k].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));document.getElementById('kl').innerHTML=s.map(x=>`<div class="oi"><span class="ot">${x.room}房</span><span class="time-badge">退房 ${x.time}</span>${x.note?`<span class="od">备注：${x.note}</span>`:''}${x.status==='done'?'<span class="done-badge">已确认</span>':''}<span class="time-badge">${x.date} ${x.submit_time}</span>${x.status!=='done'?`<button class="action-btn done" onclick="markCheckoutDone('${x.id||x.timestamp}')">已确认</button>`:''}${x.status!=='seen'?`<button class="action-btn seen" onclick="markCheckoutSeen('${x.id||x.timestamp}')">看到了</button>`:''}</div>`).join('')}
+async function markDone(id){await fetch('/api/breakfast/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'done'})});loadO()}
+async function markSeen(id){await fetch('/api/breakfast/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'seen'})});loadO()}
+async function markCleanDone(id){await fetch('/api/cleaning/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'done'})});loadC()}
+async function markCleanSeen(id){await fetch('/api/cleaning/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'seen'})});loadC()}
+async function markCheckoutDone(id){await fetch('/api/checkout/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'done'})});loadK()}
+async function markCheckoutSeen(id){await fetch('/api/checkout/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'seen'})});loadK()}
+async function checkLogin(){const i=document.getElementById('loginInput').value;const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:i})});const j=await r.json();if(j.success){token=j.token;localStorage.setItem('admin_token',token);document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}else{document.getElementById('loginError').style.display='block';document.getElementById('loginInput').value='';document.getElementById('loginInput').focus()}}
+window.addEventListener('load',()=>{if(token){document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}});
 </script>
 </body></html>'''
 
@@ -470,7 +492,7 @@ let selectedRoom='',selectedTime='';
 document.getElementById('roomSel').innerHTML=rooms.map(r=>`<button class="room-btn" onclick="selectRoom('${r}')">${r}</button>`).join('');
 function selectRoom(r){selectedRoom=r;selectedTime='';document.querySelectorAll('.room-btn').forEach(b=>b.classList.remove('selected'));event.target.classList.add('selected');document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('timeSection').classList.add('show');document.getElementById('submitBtn').classList.remove('active')}
 function selectTime(el,t){selectedTime=t;document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('selected'));el.classList.add('selected');document.getElementById('submitBtn').classList.add('active')}
-async function submitForm(){if(!selectedRoom||!selectedTime)return;const b=document.getElementById('submitBtn');b.textContent='提交中...';b.disabled=true;const note=document.getElementById('noteInput').value;try{await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,time:selectedTime,note:note})});document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 退房时间：${selectedTime} 已记录`}catch(e){alert('提交失败');b.textContent='提交退房提醒';b.disabled=false}}
+async function submitForm(){if(!selectedRoom||!selectedTime)return;const b=document.getElementById('submitBtn');b.textContent='提交中...';b.disabled=true;const note=document.getElementById('noteInput').value;try{const res=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:selectedRoom,time:selectedTime,note:note})});if(!res.ok)throw new Error('save failed');document.getElementById('formContent').classList.add('hidden');document.getElementById('successMsg').style.display='block';document.getElementById('resultMsg').textContent=`${selectedRoom}房 退房时间：${selectedTime} 已记录`}catch(e){alert('提交失败，请重试');b.textContent='提交退房提醒';b.disabled=false}}
 </script>
 </body></html>'''
 
@@ -492,6 +514,8 @@ def admin_page(): return ADMIN_HTML
 
 @app.route('/api/breakfast', methods=['GET'])
 def get_breakfast():
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
     days = request.args.get('days', 7, type=int)
     orders = load_firebase_data('breakfast')
     if days > 0:
@@ -505,6 +529,7 @@ def add_breakfast():
     orders = load_firebase_data('breakfast')
     now = datetime.now()
     order = {
+        'id': str(uuid.uuid4()),
         'room': data.get('room', ''),
         'soup': data.get('soup', ''),
         'onion': data.get('onion', ''),
@@ -514,15 +539,19 @@ def add_breakfast():
         'date': now.strftime('%Y-%m-%d')
     }
     orders.append(order)
-    save_firebase_data('breakfast', orders)
+    if not save_firebase_data('breakfast', orders):
+        return jsonify({'success': False, 'error': '保存失败，请稍后重试'}), 500
     return jsonify({'success': True})
 
 @app.route('/api/breakfast/mark', methods=['POST'])
 def mark_breakfast():
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
     data = request.json
     orders = load_firebase_data('breakfast')
+    target = data.get('id') or data.get('timestamp')
     for o in orders:
-        if o['timestamp'] == data.get('timestamp'):
+        if o.get('id') == target or (o.get('id') is None and o.get('timestamp') == target):
             o['status'] = data.get('status', 'seen')
             break
     save_firebase_data('breakfast', orders)
@@ -530,6 +559,8 @@ def mark_breakfast():
 
 @app.route('/api/cleaning', methods=['GET'])
 def get_cleaning():
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
     days = request.args.get('days', 7, type=int)
     records = load_firebase_data('cleaning')
     if days > 0:
@@ -543,6 +574,7 @@ def add_cleaning():
     records = load_firebase_data('cleaning')
     now = datetime.now()
     record = {
+        'id': str(uuid.uuid4()),
         'room': data.get('room', ''),
         'need': data.get('need', ''),
         'time': data.get('time', ''),
@@ -552,15 +584,19 @@ def add_cleaning():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
-    save_firebase_data('cleaning', records)
+    if not save_firebase_data('cleaning', records):
+        return jsonify({'success': False, 'error': '保存失败，请稍后重试'}), 500
     return jsonify({'success': True})
 
 @app.route('/api/cleaning/mark', methods=['POST'])
 def mark_cleaning():
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
     data = request.json
     records = load_firebase_data('cleaning')
+    target = data.get('id') or data.get('timestamp')
     for r in records:
-        if r['timestamp'] == data.get('timestamp'):
+        if r.get('id') == target or (r.get('id') is None and r.get('timestamp') == target):
             r['status'] = data.get('status', 'seen')
             break
     save_firebase_data('cleaning', records)
@@ -568,6 +604,8 @@ def mark_cleaning():
 
 @app.route('/api/checkout', methods=['GET'])
 def get_checkout():
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
     days = request.args.get('days', 7, type=int)
     records = load_firebase_data('checkout')
     if days > 0:
@@ -581,6 +619,7 @@ def add_checkout():
     records = load_firebase_data('checkout')
     now = datetime.now()
     record = {
+        'id': str(uuid.uuid4()),
         'room': data.get('room', ''),
         'time': data.get('time', ''),
         'note': data.get('note', ''),
@@ -589,6 +628,28 @@ def add_checkout():
         'date': now.strftime('%Y-%m-%d')
     }
     records.append(record)
+    if not save_firebase_data('checkout', records):
+        return jsonify({'success': False, 'error': '保存失败，请稍后重试'}), 500
+    return jsonify({'success': True})
+
+@app.route('/api/auth', methods=['POST'])
+def admin_auth():
+    data = request.json or {}
+    if data.get('password') == ADMIN_PASSWORD:
+        return jsonify({'success': True, 'token': API_TOKEN})
+    return jsonify({'success': False, 'message': '密码错误'}), 401
+
+@app.route('/api/checkout/mark', methods=['POST'])
+def mark_checkout():
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
+    data = request.json
+    records = load_firebase_data('checkout')
+    target = data.get('id') or data.get('timestamp')
+    for r in records:
+        if r.get('id') == target or (r.get('id') is None and r.get('timestamp') == target):
+            r['status'] = data.get('status', 'seen')
+            break
     save_firebase_data('checkout', records)
     return jsonify({'success': True})
 
