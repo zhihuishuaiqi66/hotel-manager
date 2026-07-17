@@ -1,7 +1,7 @@
 """
 小陈家·环洱度假美宿 酒店管理系统
 """
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 import json
 import os
@@ -384,7 +384,7 @@ ADMIN_HTML = '''<!DOCTYPE html>
     </div>
 </div>
 <div class="admin-content" id="adminContent">
-<div class="hd"><div class="hdc"><h1>后台管理</h1><div class="st"><div class="dot"></div><span>实时更新</span><button class="refresh-btn" onclick="refreshWithSound()">刷新</button></div></div></div>
+<div class="hd"><div class="hdc"><h1>后台管理</h1><div class="st"><div class="dot"></div><span>实时更新</span><button class="refresh-btn" onclick="refreshWithSound()">刷新</button><button class="refresh-btn" onclick="exportBackup()" style="margin-left:8px">导出备份</button></div></div></div>
 <div class="ct">
     <div class="stats">
         <div class="stat-card"><div class="stat-icon">🍜</div><div class="stat-value" id="oc">0</div><div class="stat-label">早餐订单</div></div>
@@ -411,6 +411,7 @@ async function markCleanDone(id){await fetch('/api/cleaning/mark',{method:'POST'
 async function markCleanSeen(id){await fetch('/api/cleaning/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'seen'})});loadC()}
 async function markCheckoutDone(id){await fetch('/api/checkout/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'done'})});loadK()}
 async function markCheckoutSeen(id){await fetch('/api/checkout/mark',{method:'POST',headers:authHeaders(),body:JSON.stringify({id,status:'seen'})});loadK()}
+async function exportBackup(){try{const r=await fetch('/api/export',{headers:authHeaders()});if(r.status===401){showLogin();return}const blob=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hotel-backup.json';a.click();URL.revokeObjectURL(a.href)}catch(e){alert('导出失败')}}
 async function checkLogin(){const i=document.getElementById('loginInput').value;const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:i})});const j=await r.json();if(j.success){token=j.token;localStorage.setItem('admin_token',token);document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}else{document.getElementById('loginError').style.display='block';document.getElementById('loginInput').value='';document.getElementById('loginInput').focus()}}
 window.addEventListener('load',()=>{if(token){document.getElementById('loginOverlay').style.display='none';document.getElementById('adminContent').classList.add('show');refreshWithSound();setInterval(refreshWithSound,3000)}});
 </script>
@@ -653,5 +654,26 @@ def mark_checkout():
     save_firebase_data('checkout', records)
     return jsonify({'success': True})
 
+@app.route('/api/export', methods=['GET'])
+def export_data():
+    """导出全部数据备份（需后台 token），返回 JSON 附件供下载"""
+    if not token_ok():
+        return jsonify({'success': False, 'message': '未授权'}), 401
+    data = {
+        'exported_at': datetime.now().isoformat(),
+        'breakfast': load_firebase_data('breakfast'),
+        'cleaning': load_firebase_data('cleaning'),
+        'checkout': load_firebase_data('checkout'),
+    }
+    resp = make_response(jsonify(data))
+    resp.headers['Content-Disposition'] = (
+        'attachment; filename=hotel-backup-%s.json'
+        % datetime.now().strftime('%Y%m%d-%H%M%S')
+    )
+    return resp
+
 if __name__ == '__main__':
+    if ADMIN_PASSWORD == '232566cc':
+        print('⚠️  警告：正在使用默认后台密码 232566cc，'
+              '部署前请通过环境变量 ADMIN_PASSWORD 设置一个强密码！')
     app.run(debug=True, host='0.0.0.0', port=5000)
